@@ -1,0 +1,114 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<title>Fútbol 3vs3</title>
+<style>
+  html,body{margin:0;background:transparent;overflow:hidden;height:100vh;font-family:Arial,sans-serif;}
+  .escenario{width:100vw;height:100vh;display:flex;align-items:center;justify-content:center;}
+  .marcador{position:absolute;top:16px;left:50%;transform:translateX(-50%);
+    background:rgba(0,0,0,0.55);border:2px solid #C9A24B;border-radius:10px;
+    padding:8px 22px;color:#F2EFE6;display:flex;align-items:center;gap:16px;font-weight:bold;font-size:18px;z-index:5;}
+  .marcador .reloj{color:#C9A24B;font-family:'Courier New',monospace;font-size:16px;}
+  .cancha{position:relative;width:88vw;max-width:900px;aspect-ratio:16/10;
+    background:repeating-linear-gradient(90deg,#1a5c3a 0 40px,#177a4a 40px 80px);
+    border:4px solid #F2EFE6;border-radius:6px;overflow:hidden;}
+  .linea-media{position:absolute;top:0;left:50%;width:2px;height:100%;background:rgba(242,239,230,0.6);}
+  .circulo-medio{position:absolute;top:50%;left:50%;width:110px;height:110px;border:2px solid rgba(242,239,230,0.6);border-radius:50%;transform:translate(-50%,-50%);}
+  .arco{position:absolute;top:30%;width:14px;height:40%;border:3px solid rgba(242,239,230,0.8);}
+  .arco.izq{left:0;border-left:none;}
+  .arco.der{right:0;border-right:none;}
+  .jugador{position:absolute;width:52px;height:52px;transform:translate(-50%,-50%);transition:left 1s linear, top 1s linear;text-align:center;z-index:2;}
+  .jugador img{width:44px;height:44px;border-radius:50%;object-fit:cover;background:#333;box-shadow:0 2px 8px rgba(0,0,0,0.6);}
+  .jugador.A img{border:3px solid #C9A24B;}
+  .jugador.B img{border:3px solid #B23A2F;}
+  .jugador .n{font-size:9px;color:#F2EFE6;text-shadow:0 1px 3px rgba(0,0,0,0.9);white-space:nowrap;max-width:70px;overflow:hidden;text-overflow:ellipsis;margin-top:1px;}
+  .gol-flash{position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);
+    font-size:54px;font-weight:900;color:#C9A24B;text-shadow:0 2px 10px rgba(0,0,0,0.8);
+    opacity:0;pointer-events:none;z-index:10;}
+  .gol-flash.mostrar{animation:golanim 1.8s ease-out;}
+  @keyframes golanim{
+    0%{opacity:0;transform:translate(-50%,-50%) scale(0.5);}
+    20%{opacity:1;transform:translate(-50%,-50%) scale(1.15);}
+    80%{opacity:1;transform:translate(-50%,-50%) scale(1);}
+    100%{opacity:0;transform:translate(-50%,-50%) scale(1);}
+  }
+  .final-banner{position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);
+    background:rgba(0,0,0,0.75);border:2px solid #C9A24B;border-radius:12px;padding:20px 30px;
+    color:#F2EFE6;text-align:center;z-index:10;font-size:20px;font-weight:bold;}
+  .vacio{color:#F2EFE6;text-align:center;font-size:16px;opacity:0.8;text-shadow:0 2px 4px rgba(0,0,0,0.8);}
+</style>
+</head>
+<body>
+<div class="escenario" id="escenario">
+  <div class="vacio">Esperando 6 jugadores (comentarios distintos) para armar el próximo partido...</div>
+</div>
+
+<script>
+let ultimoGolMostrado = null;
+
+function render(partido){
+  const esc = document.getElementById('escenario');
+
+  if(!partido || !partido.equipoA){
+    esc.innerHTML = '<div class="vacio">Esperando 6 jugadores (comentarios distintos) para armar el próximo partido...</div>';
+    ultimoGolMostrado = null;
+    return;
+  }
+
+  const m = Math.floor(partido.tiempoRestante/60);
+  const s = (partido.tiempoRestante%60).toString().padStart(2,'0');
+
+  const jugadoresHtml = (equipo, letra) => equipo.jugadores.map(j => `
+    <div class="jugador ${letra}" style="left:${j.x}%; top:${j.y}%;">
+      <img src="${j.avatar||''}" onerror="this.style.opacity=0.3">
+      <div class="n">${j.nombre}</div>
+    </div>
+  `).join('');
+
+  let golHtml = '';
+  if(partido.ultimoGol){
+    const esNuevo = ultimoGolMostrado !== partido.ultimoGol.t;
+    if(esNuevo) ultimoGolMostrado = partido.ultimoGol.t;
+    const eq = partido.ultimoGol.equipo === 'equipoA' ? partido.equipoA : partido.equipoB;
+    golHtml = `<div class="gol-flash ${esNuevo?'mostrar':''}">¡GOOOL DE ${eq.nombre.toUpperCase()}!</div>`;
+  }
+
+  const bannerFinal = partido.terminado ? `
+    <div class="final-banner">
+      🏁 Final del partido<br>
+      ${partido.equipoA.nombre} ${partido.equipoA.goles} - ${partido.equipoB.goles} ${partido.equipoB.nombre}
+    </div>` : '';
+
+  esc.innerHTML = `
+    <div class="marcador">
+      <span>${partido.equipoA.nombre} ${partido.equipoA.goles}</span>
+      <span class="reloj">${m}:${s}</span>
+      <span>${partido.equipoB.goles} ${partido.equipoB.nombre}</span>
+    </div>
+    <div class="cancha">
+      <div class="linea-media"></div>
+      <div class="circulo-medio"></div>
+      <div class="arco izq"></div>
+      <div class="arco der"></div>
+      ${jugadoresHtml(partido.equipoA, 'A')}
+      ${jugadoresHtml(partido.equipoB, 'B')}
+      ${golHtml}
+      ${bannerFinal}
+    </div>
+  `;
+}
+
+async function actualizar(){
+  try{
+    const res = await fetch('/api/estado');
+    const estado = await res.json();
+    render(estado.partido);
+  }catch(e){}
+}
+
+actualizar();
+setInterval(actualizar, 1000);
+</script>
+</body>
+</html>

@@ -1,0 +1,63 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<title>Estado de Batallas</title>
+<style>
+  :root{ --hueso:#F2EFE6; --dorado:#C9A24B; --rojo:#B23A2F; --grada:#7A8C82; --linea: rgba(242,239,230,0.28); }
+  *{box-sizing:border-box;}
+  body{margin:0;font-family:Arial,sans-serif;background:#111;color:var(--hueso);padding:16px;}
+  h1{color:var(--dorado);font-size:20px;margin:0 0 6px;}
+  .sub{color:var(--grada);font-size:13px;margin-bottom:16px;}
+  .estado-pelea{background:#1c1c1c;border:1px solid var(--linea);border-radius:8px;padding:14px;margin-bottom:16px;font-size:15px;}
+  .lista{display:flex;flex-direction:column;gap:8px;}
+  .item{display:flex;align-items:center;gap:10px;background:#1c1c1c;border:1px solid var(--linea);border-radius:8px;padding:8px 10px;}
+  .item img{width:32px;height:32px;border-radius:50%;object-fit:cover;background:#333;flex-shrink:0;}
+  .item .info{flex:1;min-width:0;}
+  .item .nombre{font-size:11px;color:var(--dorado);}
+  .item .texto{font-size:13px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+</style>
+</head>
+<body>
+<h1>⚔️ Batallas automáticas</h1>
+<p class="sub">Todo corre solo: apenas llegan dos comentarios nuevos, pelean. No hace falta que toques nada acá.</p>
+
+<div class="estado-pelea" id="estado-pelea">Cargando...</div>
+
+<h1 style="margin-top:10px;font-size:15px;">Últimos comentarios recibidos</h1>
+<div class="lista" id="lista"></div>
+
+<script>
+async function cargar(){
+  try{
+    const res = await fetch('/api/estado');
+    const estado = await res.json();
+
+    const p = estado.pelea;
+    const ep = document.getElementById('estado-pelea');
+    if(p.activo){
+      ep.innerHTML = `⚔️ Peleando ahora: <b>${p.j1.nombre}</b> (${p.j1.golpes}) vs <b>${p.j2.nombre}</b> (${p.j2.golpes})`;
+    } else if(p.ganador){
+      ep.innerHTML = `🏆 Última pelea: ganó <b>${p[p.ganador].nombre}</b>. Esperando la próxima pareja de comentarios...`;
+    } else {
+      ep.textContent = 'Esperando comentarios para armar la primera pelea...';
+    }
+
+    const lista = document.getElementById('lista');
+    lista.innerHTML = (estado.comentarios || []).map(c => `
+      <div class="item">
+        <img src="${c.avatar || ''}" onerror="this.style.opacity=0">
+        <div class="info">
+          <div class="nombre">${c.nombre}</div>
+          <div class="texto">${c.texto}</div>
+        </div>
+      </div>
+    `).join('');
+  }catch(e){}
+}
+
+cargar();
+setInterval(cargar, 2000);
+</script>
+</body>
+</html>

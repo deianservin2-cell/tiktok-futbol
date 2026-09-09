@@ -1,0 +1,99 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<title>Batalla de comentarios</title>
+<style>
+  html,body{margin:0;background:transparent;overflow:hidden;height:100vh;font-family:Arial,sans-serif;}
+  .escenario{position:relative;width:100vw;height:100vh;display:flex;align-items:center;justify-content:center;}
+  .arena{width:90vw;max-width:900px;position:relative;}
+  .vs{display:flex;align-items:flex-end;justify-content:center;gap:40px;position:relative;}
+  .peleador{display:flex;flex-direction:column;align-items:center;width:220px;transition:transform 0.25s;}
+  .peleador.golpeado{animation:golpe 0.3s;}
+  .peleador.caido{transform:rotate(90deg) translateY(40px);opacity:0.6;}
+  @keyframes golpe{
+    0%{transform:translateX(0);}
+    30%{transform:translateX(-14px) rotate(-6deg);}
+    60%{transform:translateX(10px) rotate(4deg);}
+    100%{transform:translateX(0);}
+  }
+  .avatar-wrap{position:relative;width:120px;height:120px;}
+  .avatar{width:120px;height:120px;border-radius:50%;object-fit:cover;border:5px solid #C9A24B;background:#333;box-shadow:0 0 22px rgba(0,0,0,0.6);}
+  .espada{position:absolute;font-size:44px;bottom:-6px;filter:drop-shadow(0 2px 4px rgba(0,0,0,0.6));}
+  .p1 .espada{right:-30px; transform:rotate(35deg) scaleX(-1);}
+  .p2 .espada{left:-30px; transform:rotate(-35deg);}
+  .nombre{margin-top:10px;color:#F2EFE6;font-weight:bold;font-size:18px;text-shadow:0 2px 4px rgba(0,0,0,0.8);text-align:center;}
+  .texto{color:#C9A24B;font-size:12px;max-width:200px;text-align:center;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;text-shadow:0 1px 3px rgba(0,0,0,0.8);}
+  .barra{width:180px;height:16px;background:rgba(0,0,0,0.5);border:2px solid #F2EFE6;border-radius:8px;margin-top:8px;overflow:hidden;}
+  .barra-relleno{height:100%;background:linear-gradient(90deg,#C9A24B,#e8c877);transition:width 0.3s;}
+  .golpes-num{color:#F2EFE6;font-size:12px;margin-top:2px;}
+  .versus-txt{position:absolute;top:40%;left:50%;transform:translate(-50%,-50%);font-size:38px;font-weight:900;color:#B23A2F;text-shadow:0 2px 8px rgba(0,0,0,0.7);font-style:italic;}
+  .ganador-banner{position:absolute;top:-50px;left:50%;transform:translateX(-50%);background:#C9A24B;color:#111;font-weight:bold;padding:8px 20px;border-radius:20px;font-size:16px;white-space:nowrap;box-shadow:0 4px 12px rgba(0,0,0,0.5);}
+  .vacio{color:#F2EFE6;text-align:center;font-size:16px;opacity:0.7;}
+</style>
+</head>
+<body>
+<div class="escenario" id="escenario">
+  <div class="vacio">Esperando que el streamer elija una pelea...</div>
+</div>
+
+<script>
+let estadoAnterior = null;
+
+function render(pelea){
+  const esc = document.getElementById('escenario');
+
+  if(!pelea.j1 || !pelea.j2){
+    esc.innerHTML = '<div class="vacio">Esperando que el streamer elija una pelea...</div>';
+    estadoAnterior = null;
+    return;
+  }
+
+  const p1Golpeado = pelea.ultimoGolpe === 'j1';
+  const p2Golpeado = pelea.ultimoGolpe === 'j2';
+  const p1Caido = pelea.ganador === 'j2';
+  const p2Caido = pelea.ganador === 'j1';
+
+  esc.innerHTML = `
+    <div class="arena">
+      ${pelea.ganador ? `<div class="ganador-banner">🏆 ¡GANÓ ${pelea[pelea.ganador].nombre.toUpperCase()}!</div>` : ''}
+      <div class="vs">
+        <div class="peleador p1 ${p1Golpeado?'golpeado':''} ${p1Caido?'caido':''}">
+          <div class="avatar-wrap">
+            <img class="avatar" src="${pelea.j1.avatar||''}" onerror="this.style.opacity=0.3">
+            <div class="espada">🗡️</div>
+          </div>
+          <div class="nombre">${pelea.j1.nombre}</div>
+          <div class="texto">"${pelea.j1.texto}"</div>
+          <div class="barra"><div class="barra-relleno" style="width:${pelea.j1.golpes*10}%"></div></div>
+          <div class="golpes-num">${pelea.j1.golpes} / 10 golpes</div>
+        </div>
+        <div class="versus-txt">VS</div>
+        <div class="peleador p2 ${p2Golpeado?'golpeado':''} ${p2Caido?'caido':''}">
+          <div class="avatar-wrap">
+            <img class="avatar" src="${pelea.j2.avatar||''}" onerror="this.style.opacity=0.3">
+            <div class="espada">🗡️</div>
+          </div>
+          <div class="nombre">${pelea.j2.nombre}</div>
+          <div class="texto">"${pelea.j2.texto}"</div>
+          <div class="barra"><div class="barra-relleno" style="width:${pelea.j2.golpes*10}%"></div></div>
+          <div class="golpes-num">${pelea.j2.golpes} / 10 golpes</div>
+        </div>
+      </div>
+    </div>
+  `;
+}
+
+async function actualizar(){
+  try{
+    const res = await fetch('/api/estado');
+    const estado = await res.json();
+    render(estado.pelea);
+  }catch(e){}
+}
+
+actualizar();
+setInterval(actualizar, 400);
+</script>
+</body>
+</html>

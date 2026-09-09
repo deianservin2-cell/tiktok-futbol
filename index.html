@@ -1,0 +1,124 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<title>Liga Infinita Sudamericana - TikTok</title>
+<style>
+  :root{
+    --cesped:#0F3D2E; --cesped2:#0C3225; --hueso:#F2EFE6;
+    --dorado:#C9A24B; --rojo:#B23A2F; --grada:#7A8C82;
+    --linea: rgba(242,239,230,0.28);
+  }
+  *{box-sizing:border-box;}
+  body{margin:0;font-family:'Arial Narrow',Arial,sans-serif;background:var(--cesped);color:var(--hueso);}
+  .cancha{background:repeating-linear-gradient(90deg,var(--cesped) 0 60px,var(--cesped2) 60px 120px);min-height:100vh;padding:18px;}
+  .header{display:flex;justify-content:space-between;align-items:center;border-bottom:2px solid var(--linea);padding-bottom:14px;margin-bottom:16px;flex-wrap:wrap;gap:10px;}
+  .titulo{font-family:'Impact','Arial Narrow',sans-serif;font-size:26px;color:var(--dorado);margin:0;}
+  .sub{font-size:13px;color:var(--grada);margin-top:2px;}
+  .reloj{font-family:'Courier New',monospace;font-size:38px;font-weight:bold;background:rgba(0,0,0,0.25);border:2px solid var(--dorado);border-radius:6px;padding:4px 18px;min-width:140px;text-align:center;}
+  .reloj.final{color:var(--rojo);border-color:var(--rojo);}
+  .reloj.pausa{color:var(--grada);border-color:var(--grada);}
+  .layout{display:grid;grid-template-columns:1.3fr 1fr;gap:18px;}
+  @media(max-width:800px){.layout{grid-template-columns:1fr;}}
+  .panel{background:rgba(0,0,0,0.22);border:1px solid var(--linea);border-radius:8px;padding:14px;}
+  .panel h2{font-size:15px;text-transform:uppercase;color:var(--dorado);margin:0 0 10px;border-bottom:1px solid var(--linea);padding-bottom:8px;}
+  table{width:100%;border-collapse:collapse;font-size:14px;}
+  th{text-align:left;color:var(--grada);font-weight:normal;font-size:12px;text-transform:uppercase;padding:4px 6px;border-bottom:1px solid var(--linea);}
+  td{padding:6px;border-bottom:1px solid rgba(255,255,255,0.06);}
+  tr.lider td{color:var(--dorado);font-weight:bold;}
+  tr.empatado td{color:var(--rojo);}
+  .pos{width:26px;color:var(--grada);}
+  .pts{text-align:right;font-weight:bold;width:40px;}
+  .log{max-height:230px;overflow-y:auto;display:flex;flex-direction:column-reverse;font-size:13px;line-height:1.5;}
+  .log p{margin:3px 0;padding-left:8px;border-left:2px solid var(--linea);}
+  .log p.gol{border-left-color:var(--dorado);color:var(--dorado);}
+  .log p.campeon{border-left-color:var(--rojo);color:var(--rojo);font-weight:bold;}
+  .historial{max-height:230px;overflow-y:auto;font-size:13px;}
+  .historial-item{display:flex;justify-content:space-between;padding:5px 0;border-bottom:1px solid rgba(255,255,255,0.06);}
+  .estrella{color:var(--dorado);font-size:11px;}
+</style>
+</head>
+<body>
+<div class="cancha">
+  <div class="header">
+    <div>
+      <p class="titulo">Liga infinita sudamericana</p>
+      <p class="sub" id="fase-txt">Conectando con TikTok Live...</p>
+    </div>
+    <div class="reloj" id="reloj">--:--</div>
+  </div>
+  <div class="layout">
+    <div class="panel">
+      <h2>Tabla de posiciones</h2>
+      <table>
+        <thead><tr><th class="pos">#</th><th>Equipo</th><th class="pts">Pts</th></tr></thead>
+        <tbody id="tabla-body"></tbody>
+      </table>
+    </div>
+    <div>
+      <div class="panel">
+        <h2>Relator</h2>
+        <div class="log" id="log"></div>
+      </div>
+      <div class="panel" style="margin-top:18px;">
+        <h2>Campeones históricos</h2>
+        <div class="historial" id="historial"></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+function formatoReloj(s){
+  s = Math.max(s,0);
+  const m = Math.floor(s/60);
+  const seg = s%60;
+  return `${m}:${seg.toString().padStart(2,'0')}`;
+}
+
+async function actualizar(){
+  try{
+    const res = await fetch('/api/estado');
+    const estado = await res.json();
+
+    const activos = estado.fase==='desempate' ? estado.equiposDesempate : Object.keys(estado.scores);
+    const ordenado = [...activos].sort((a,b)=>estado.scores[b]-estado.scores[a]);
+    const maxPts = ordenado.length ? estado.scores[ordenado[0]] : 0;
+    const empatadosArriba = ordenado.filter(e=>estado.scores[e]===maxPts).length;
+
+    document.getElementById('tabla-body').innerHTML = ordenado.map((e,i)=>{
+      let cls='';
+      if(i===0 && maxPts>0 && empatadosArriba===1) cls='lider';
+      else if(estado.scores[e]===maxPts && maxPts>0 && empatadosArriba>1) cls='empatado';
+      return `<tr class="${cls}"><td class="pos">${i+1}</td><td>${e}</td><td class="pts">${estado.scores[e]}</td></tr>`;
+    }).join('');
+
+    document.getElementById('reloj').textContent = estado.conectado ? formatoReloj(estado.tiempoRestante) : '--:--';
+    document.getElementById('reloj').className = 'reloj' + (!estado.conectado ? ' pausa' : (estado.fase==='desempate' ? ' final' : ''));
+
+    if(!estado.conectado){
+      document.getElementById('fase-txt').textContent = 'Esperando que arranque el live de TikTok...';
+    } else {
+      document.getElementById('fase-txt').textContent = estado.fase==='desempate'
+        ? `¡Empate arriba! Desempate entre ${estado.equiposDesempate.join(', ')}`
+        : 'Ronda regular en curso';
+    }
+
+    document.getElementById('log').innerHTML = estado.logs.slice(-60).map(l=>
+      `<p class="${l.tipo||''}">${l.msg}</p>`
+    ).join('');
+
+    const items = Object.entries(estado.historial).sort((a,b)=>b[1]-a[1]);
+    document.getElementById('historial').innerHTML = items.length===0
+      ? '<p style="color:var(--grada)">Todavía no hay campeones.</p>'
+      : items.map(([e,v])=>`<div class="historial-item"><span>${e}</span><span class="estrella">${'★'.repeat(v)} (${v})</span></div>`).join('');
+  }catch(e){
+    document.getElementById('fase-txt').textContent = 'Sin conexión con el servidor...';
+  }
+}
+
+actualizar();
+setInterval(actualizar, 2000);
+</script>
+</body>
+</html>
