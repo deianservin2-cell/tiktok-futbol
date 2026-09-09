@@ -61,6 +61,15 @@
   .banda-espera{position:absolute;bottom:2%;left:50%;transform:translateX(-50%);display:flex;gap:8px;z-index:2;}
   .banda-espera img{width:30px;height:30px;border-radius:50%;object-fit:cover;border:2px solid #F2EFE6;opacity:0.85;}
   .titulo-entreno{position:absolute;top:16px;left:50%;transform:translateX(-50%);color:#C9A24B;font-weight:bold;font-size:14px;text-shadow:0 2px 4px rgba(0,0,0,0.8);z-index:5;}
+
+  .votacion-banner{position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);
+    background:rgba(0,0,0,0.75);border:2px solid #C9A24B;border-radius:12px;padding:20px 30px;
+    color:#F2EFE6;text-align:center;z-index:10;min-width:260px;}
+  .votacion-banner .pregunta{font-size:18px;font-weight:bold;margin-bottom:10px;}
+  .votacion-banner .votos{display:flex;justify-content:space-between;gap:20px;font-size:22px;font-weight:900;}
+  .votacion-banner .si{color:#4caf6a;}
+  .votacion-banner .no{color:#B23A2F;}
+  .votacion-banner .ayuda{font-size:11px;color:#7A8C82;margin-top:10px;}
 </style>
 </head>
 <body>
@@ -109,15 +118,30 @@ function renderEntrenamiento(entrenamiento){
   `;
 }
 
-function render(partido, entrenamiento){
+function renderVotacion(votacion){
+  const esc = document.getElementById('escenario');
+  const etiqueta = votacion.modo === 1 ? '1 vs 1' : '2 vs 2';
+  const segRestantes = Math.max(0, Math.ceil((votacion.finalizaEn - Date.now())/1000));
+  esc.innerHTML = `
+    <div class="votacion-banner">
+      <div class="pregunta">🗳️ ¿Jugamos ${etiqueta} ya?</div>
+      <div class="votos"><span class="si">SI: ${votacion.si}</span><span class="no">NO: ${votacion.no}</span></div>
+      <div class="ayuda">Comentá SI o NO · ${segRestantes}s</div>
+    </div>
+  `;
+}
+
+function render(partido, entrenamiento, votacion){
   if(partido && partido.activo){
     renderPartido(partido);
+  } else if(votacion && votacion.activo){
+    renderVotacion(votacion);
   } else if(entrenamiento && entrenamiento.jugadoresEnCampo && entrenamiento.jugadoresEnCampo.length > 0){
     renderEntrenamiento(entrenamiento);
   } else if(partido && partido.terminado){
     renderPartido(partido);
   } else {
-    document.getElementById('escenario').innerHTML = '<div class="vacio">Esperando 6 jugadores (comentarios distintos) para armar el próximo partido...</div>';
+    document.getElementById('escenario').innerHTML = '<div class="vacio">Esperando jugadores (comentarios distintos) para armar el próximo partido...</div>';
   }
 }
 
@@ -177,7 +201,7 @@ async function actualizar(){
   try{
     const res = await fetch('/api/estado');
     const estado = await res.json();
-    render(estado.partido, estado.entrenamiento);
+    render(estado.partido, estado.entrenamiento, estado.votacion);
   }catch(e){}
 }
 
