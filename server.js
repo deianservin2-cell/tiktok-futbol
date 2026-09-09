@@ -299,6 +299,7 @@ function iniciarPartido(modo) {
   estado.partido = {
     activo: true,
     modo,
+    id: Date.now(),
     equipoA: armarEquipo(nombreA, grupo.slice(0, modo), 'izq'),
     equipoB: armarEquipo(nombreB, grupo.slice(modo, necesarios), 'der'),
     tiempoRestante: DURACION_PARTIDO,
