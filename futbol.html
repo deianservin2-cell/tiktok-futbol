@@ -68,9 +68,8 @@
   .jugador .n{font-size:9px;color:#F2EFE6;text-shadow:0 1px 3px rgba(0,0,0,0.9);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;margin-top:1px;}
 
   .pelota-partido{position:absolute;width:22px;height:22px;line-height:22px;text-align:center;
-    font-size:18px;z-index:4;filter:drop-shadow(0 2px 4px rgba(0,0,0,0.7));pointer-events:none;}
-  .pelota-sombra{position:absolute;width:16px;height:6px;border-radius:50%;background:rgba(0,0,0,0.35);
-    transform:translate(-50%,-50%);z-index:2;pointer-events:none;transition:opacity 0.2s;}
+    font-size:18px;z-index:4;filter:drop-shadow(0 2px 4px rgba(0,0,0,0.7));pointer-events:none;
+    transform:translate(-50%,-50%);transition:left 0.9s linear, top 0.9s linear;}
 
   .flash{position:absolute;top:38%;left:50%;transform:translate(-50%,-50%);
     font-weight:900;text-shadow:0 2px 10px rgba(0,0,0,0.85);opacity:0;pointer-events:none;z-index:10;
@@ -146,79 +145,11 @@
 let partidoIdActual = null;
 let jugadorEls = {}; // nombre -> elemento DOM
 let pelotaEl = null;
-let sombraEl = null;
 let ultimoGolMostrado = null;
 let ultimoTiroPartidoMostrado = null;
 let ultimoTiroEntrenoMostrado = null;
 
-// --- física de la pelota (independiente del polling del servidor) ---
-let bola = { x: 50, y: 50, carrierNombre: null, modo: 'quieta', origen: null, destino: null, inicioT: 0, duracion: 700 };
-
-function lerp(a, b, t){ return a + (b - a) * t; }
-
-function posicionActualJugador(nombre){
-  const el = jugadorEls[nombre];
-  if(!el) return null;
-  return { x: parseFloat(el.style.left), y: parseFloat(el.style.top) };
-}
-
-function aplicarPosicionPelota(x, y, alturaPx, escala){
-  if(!pelotaEl || !sombraEl) return;
-  pelotaEl.style.left = x + '%';
-  pelotaEl.style.top = y + '%';
-  pelotaEl.style.transform = `translate(-50%,-50%) translateY(-${alturaPx}px) scale(${escala})`;
-  sombraEl.style.left = x + '%';
-  sombraEl.style.top = y + '%';
-  sombraEl.style.opacity = Math.max(0.15, 0.4 - alturaPx / 60);
-}
-
-function dispararTiro(destino, fueGol){
-  bola.modo = 'volando';
-  bola.origen = { x: bola.x, y: bola.y };
-  bola.destino = { x: destino.x, y: destino.y };
-  bola.inicioT = performance.now();
-  bola.duracion = 650;
-  bola.fueGol = fueGol;
-}
-
-function loopFisica(ahora){
-  requestAnimationFrame(loopFisica);
-  if(!pelotaEl) return;
-
-  if(bola.modo === 'volando' || bola.modo === 'rebotando'){
-    const t = Math.min(1, (ahora - bola.inicioT) / bola.duracion);
-    bola.x = lerp(bola.origen.x, bola.destino.x, t);
-    bola.y = lerp(bola.origen.y, bola.destino.y, t);
-    const picoAltura = bola.modo === 'volando' ? 20 : 9;
-    const altura = Math.sin(Math.PI * t) * picoAltura;
-    const escala = 1 + (altura / picoAltura) * 0.3;
-    aplicarPosicionPelota(bola.x, bola.y, altura, escala);
-
-    if(t >= 1){
-      if(bola.modo === 'volando' && !bola.fueGol){
-        // rebota de vuelta hacia el medio campo, como si el arquero la despejara
-        bola.modo = 'rebotando';
-        bola.origen = { x: bola.destino.x, y: bola.destino.y };
-        bola.destino = { x: 50, y: 25 + Math.random() * 50 };
-        bola.inicioT = ahora;
-        bola.duracion = 500;
-      } else {
-        bola.modo = 'siguiendo';
-      }
-    }
-  } else {
-    // rodando pegada al jugador que la lleva, con inercia (no salta directo a su posición)
-    const carrier = posicionActualJugador(bola.carrierNombre);
-    if(carrier){
-      const objetivoX = carrier.x + 3;
-      const objetivoY = carrier.y - 4;
-      bola.x += (objetivoX - bola.x) * 0.12;
-      bola.y += (objetivoY - bola.y) * 0.12;
-    }
-    aplicarPosicionPelota(bola.x, bola.y, 0, 1);
-  }
-}
-requestAnimationFrame(loopFisica);
+const DURACION_MOVIMIENTO = 900; // ms, tiene que coincidir con el "transition" del CSS de .jugador y .pelota-partido
 
 function mostrarSolo(idVisible){
   ['vista-vacio','vista-votacion','vista-entreno','vista-penales','vista-partido'].forEach(id=>{
@@ -330,11 +261,9 @@ function renderPartido(p){
     Object.values(jugadorEls).forEach(el => el.remove());
     jugadorEls = {};
     if(pelotaEl){ pelotaEl.remove(); pelotaEl = null; }
-    if(sombraEl){ sombraEl.remove(); sombraEl = null; }
     partidoIdActual = p.id;
     ultimoGolMostrado = null;
     ultimoTiroPartidoMostrado = null;
-    bola = { x: 50, y: 50, carrierNombre: p.posesion, modo: 'quieta', origen: null, destino: null, inicioT: 0, duracion: 700 };
   }
 
   document.getElementById('p-nombreA').textContent = `${p.equipoA.nombre} ${p.equipoA.goles}`;
@@ -350,28 +279,30 @@ function renderPartido(p){
     pelotaEl = document.createElement('div');
     pelotaEl.className = 'pelota-partido';
     pelotaEl.textContent = '⚽';
-    sombraEl = document.createElement('div');
-    sombraEl.className = 'pelota-sombra';
-    cancha.appendChild(sombraEl);
     cancha.appendChild(pelotaEl);
   }
 
-  // si el servidor avisa un tiro nuevo, disparamos la animación de física (arco + rebote si no fue gol)
-  if(p.ultimoTiro){
-    const esNuevoTiro = ultimoTiroPartidoMostrado !== p.ultimoTiro.t;
-    if(esNuevoTiro && bola.modo !== 'volando'){
-      ultimoTiroPartidoMostrado = p.ultimoTiro.t;
-      dispararTiro({ x: p.ultimoTiro.x, y: p.ultimoTiro.y }, p.ultimoTiro.gol);
-      if(p.ultimoTiro.gol === false){
-        crearFlash(cancha, '🧤 ¡ATAJADA!', 'atajada');
-      }
-    }
+  // la pelota va SIEMPRE al mismo lugar exacto que dice el servidor: quien tiene la posesión.
+  // Cuando hay un tiro, el servidor ya puso a ese jugador en el punto del arco, así que la
+  // pelota viaja para ahí solita con la misma transición CSS que usan los jugadores (0.9s).
+  const todos = [...p.equipoA.jugadores, ...p.equipoB.jugadores];
+  const conPelota = todos.find(j => j.nombre === p.posesion);
+  if(conPelota){
+    pelotaEl.style.left = conPelota.x + '%';
+    pelotaEl.style.top = conPelota.y + '%';
   }
 
-  // mientras nadie está tirando, la pelota sigue al jugador que la lleva
-  if(bola.modo === 'quieta' || bola.modo === 'siguiendo'){
-    bola.carrierNombre = p.posesion;
-    bola.modo = 'siguiendo';
+  // el cartel de GOL/ATAJADA se muestra recién cuando la pelota YA llegó visualmente
+  // (esperamos la misma duración del movimiento), para que nunca se sienta "de la nada".
+  if(p.ultimoTiro){
+    const esNuevoTiro = ultimoTiroPartidoMostrado !== p.ultimoTiro.t;
+    if(esNuevoTiro){
+      ultimoTiroPartidoMostrado = p.ultimoTiro.t;
+      const fueGol = p.ultimoTiro.gol;
+      setTimeout(() => {
+        if(!fueGol) crearFlash(cancha, '🧤 ¡ATAJADA!', 'atajada');
+      }, DURACION_MOVIMIENTO);
+    }
   }
 
   if(p.ultimoGol){
@@ -379,7 +310,9 @@ function renderPartido(p){
     if(esNuevo){
       ultimoGolMostrado = p.ultimoGol.t;
       const eq = p.ultimoGol.equipo === 'equipoA' ? p.equipoA : p.equipoB;
-      crearFlash(cancha, `¡GOOOL DE ${eq.nombre.toUpperCase()}!`, 'gol');
+      setTimeout(() => {
+        crearFlash(cancha, `¡GOOOL DE ${eq.nombre.toUpperCase()}!`, 'gol');
+      }, DURACION_MOVIMIENTO);
     }
   }
 
