@@ -38,7 +38,8 @@ function estadoInicial() {
     comentarios: [],
     pelea: peleaVacia(),
     partido: partidoVacio(),
-    entrenamiento: null
+    entrenamiento: null,
+    votacion: null
   };
 }
 
@@ -64,6 +65,7 @@ function cargarEstado() {
     if (!data.partido) data.partido = partidoVacio();
     data.partido.activo = false; // no arrancamos con un partido "colgado" al reiniciar
     if (data.entrenamiento === undefined) data.entrenamiento = null;
+    data.votacion = null; // nunca arrancamos con una votación "colgada"
     return data;
   } catch (e) {
     return estadoInicial();
@@ -205,7 +207,7 @@ function guardarComentario(texto, user) {
       !(estado.partido.activo && [...estado.partido.equipoA.jugadores, ...estado.partido.equipoB.jugadores].some(j => j.nombre === c.nombre))) {
     colaJugadores.push({ nombre: c.nombre, avatar: c.avatar });
   }
-  intentarAutoPartido();
+  intentarFlujoPartidos();
 }
 
 // --- Batalla de comentarios (automática) ---
@@ -256,12 +258,18 @@ function iniciarPelea(idJ1, idJ2) {
 
 let conn = null;
 
-// --- Fútbol 3 vs 3 (automático) ---
+// --- Fútbol automático: 1vs1, 2vs2 o 3vs3 según votación ---
 let colaJugadores = [];
 let partidoInterval = null;
+let umbralPreguntado2 = 0; // si dijeron "no" a jugar 1v1, no volvemos a preguntar hasta que la cola crezca más que esto
+let umbralPreguntado4 = 0; // lo mismo para 2v2
 
 function partidoVacio() {
   return { activo: false, equipoA: null, equipoB: null, tiempoRestante: DURACION_PARTIDO, terminado: false };
+}
+
+function votacionVacia() {
+  return null;
 }
 
 function posAleatoria() {
@@ -276,24 +284,27 @@ function armarEquipo(nombre, jugadores) {
   };
 }
 
-function intentarAutoPartido() {
-  if (estado.partido.activo) return;
-  if (colaJugadores.length < 6) return;
+function iniciarPartido(modo) {
+  // modo: 1, 2 o 3 jugadores por equipo
+  const necesarios = modo * 2;
+  if (colaJugadores.length < necesarios) return;
 
-  const seis = colaJugadores.splice(0, 6);
+  const grupo = colaJugadores.splice(0, necesarios);
   const equiposBarajados = [...EQUIPOS].sort(() => Math.random() - 0.5);
   const [nombreA, nombreB] = equiposBarajados;
 
   estado.partido = {
     activo: true,
-    equipoA: armarEquipo(nombreA, seis.slice(0, 3)),
-    equipoB: armarEquipo(nombreB, seis.slice(3, 6)),
+    modo,
+    equipoA: armarEquipo(nombreA, grupo.slice(0, modo)),
+    equipoB: armarEquipo(nombreB, grupo.slice(modo, necesarios)),
     tiempoRestante: DURACION_PARTIDO,
     terminado: false,
     ultimoGol: null
   };
   estado.entrenamiento = null;
-  agregarLog(`⚽ Arranca el partido: ${nombreA} vs ${nombreB}`, 'gol');
+  const etiqueta = modo === 1 ? '1 vs 1' : (modo === 2 ? '2 vs 2' : '3 vs 3');
+  agregarLog(`⚽ Arranca el partido (${etiqueta}): ${nombreA} vs ${nombreB}`, 'gol');
   guardarEstado();
 
   if (partidoInterval) clearInterval(partidoInterval);
@@ -301,13 +312,11 @@ function intentarAutoPartido() {
     const p = estado.partido;
     if (!p.activo) { clearInterval(partidoInterval); return; }
 
-    // movimiento: cada jugador se mueve un poco solo, como regateando
     [...p.equipoA.jugadores, ...p.equipoB.jugadores].forEach(j => {
       j.x = Math.min(92, Math.max(8, j.x + (Math.random() * 20 - 10)));
       j.y = Math.min(92, Math.max(8, j.y + (Math.random() * 20 - 10)));
     });
 
-    // chance de gol cada segundo (~10%)
     if (Math.random() < 0.10) {
       const equipoQueMete = Math.random() < 0.5 ? 'equipoA' : 'equipoB';
       const eq = p[equipoQueMete];
@@ -329,19 +338,89 @@ function intentarAutoPartido() {
         const ganador = ga > gb ? p.equipoA.nombre : p.equipoB.nombre;
         agregarLog(`🏁 Termina el partido: ganó ${ganador} (${ga}-${gb})`, 'campeon');
       }
+      umbralPreguntado2 = 0;
+      umbralPreguntado4 = 0;
       setTimeout(() => {
         estado.partido = partidoVacio();
         guardarEstado();
-        intentarAutoPartido();
-      }, 8000); // 8s mostrando el resultado final antes de arrancar el próximo
+        intentarFlujoPartidos();
+      }, 8000);
     }
     guardarEstado();
   }, 1000);
 }
 
-// entrenamiento: mientras hay entre 1 y 5 en la cola, van pateando al arco de a uno
+function iniciarVotacion(modo) {
+  estado.votacion = {
+    activo: true,
+    modo,
+    si: 0,
+    no: 0,
+    votantes: {},
+    finalizaEn: Date.now() + 15000
+  };
+  const etiqueta = modo === 1 ? '1 vs 1' : '2 vs 2';
+  agregarLog(`🗳️ ¿Jugamos ${etiqueta} ya? Comenten SI o NO (15 segundos para votar)`, 'gol');
+  guardarEstado();
+  setTimeout(() => resolverVotacion(modo), 15000);
+}
+
+function resolverVotacion(modo) {
+  const v = estado.votacion;
+  if (!v || !v.activo || v.modo !== modo) return;
+  v.activo = false;
+
+  let seJuega;
+  if (v.si === v.no) {
+    seJuega = Math.random() < 0.5;
+    agregarLog('🎲 Empate en la votación, se decide al azar...', 'gol');
+  } else {
+    seJuega = v.si > v.no;
+  }
+
+  const etiqueta = modo === 1 ? '1 vs 1' : '2 vs 2';
+  if (seJuega) {
+    agregarLog(`✅ ¡Se juega ${etiqueta}! (${v.si} SI - ${v.no} NO)`, 'gol');
+    estado.votacion = null;
+    guardarEstado();
+    iniciarPartido(modo);
+  } else {
+    agregarLog(`❌ Se prefiere esperar más jugadores (${v.si} SI - ${v.no} NO)`, 'gol');
+    if (modo === 1) umbralPreguntado2 = colaJugadores.length;
+    else umbralPreguntado4 = colaJugadores.length;
+    estado.votacion = null;
+    guardarEstado();
+    intentarFlujoPartidos();
+  }
+}
+
+function registrarVoto(texto, user) {
+  const v = estado.votacion;
+  if (!v || !v.activo) return;
+  const nombre = extraerNombre(user);
+  if (v.votantes[nombre]) return; // una persona vota una sola vez por votación
+  const t = normalizar(texto);
+  if (t === 'si' || t === 's') { v.si++; v.votantes[nombre] = true; guardarEstado(); }
+  else if (t === 'no' || t === 'n') { v.no++; v.votantes[nombre] = true; guardarEstado(); }
+}
+
+function intentarFlujoPartidos() {
+  if (estado.partido.activo) return;
+  if (estado.votacion && estado.votacion.activo) return;
+
+  const n = colaJugadores.length;
+  if (n >= 6) {
+    iniciarPartido(3); // el máximo, arranca directo sin votar
+  } else if (n >= 4 && n > umbralPreguntado4) {
+    iniciarVotacion(2);
+  } else if (n >= 2 && n > umbralPreguntado2) {
+    iniciarVotacion(1);
+  }
+}
+
+// entrenamiento: mientras se espera (sin partido ni votación activa), van pateando al arco de a uno
 setInterval(() => {
-  if (estado.partido.activo) { estado.entrenamiento = null; return; }
+  if (estado.partido.activo || (estado.votacion && estado.votacion.activo)) { estado.entrenamiento = null; return; }
   if (colaJugadores.length === 0) { estado.entrenamiento = null; guardarEstado(); return; }
 
   const tirador = colaJugadores[Math.floor(Math.random() * colaJugadores.length)];
@@ -368,7 +447,9 @@ function conectar() {
   conn.on(WebcastEvent.CHAT, data => {
     const texto = data.content || data.comment;
     if (!texto) return;
-    guardarComentario(texto, data.user || {});
+    const user = data.user || {};
+    guardarComentario(texto, user);
+    registrarVoto(texto, user);
     const equipo = buscarEquipo(texto);
     if (equipo) sumarPunto(equipo);
   });
