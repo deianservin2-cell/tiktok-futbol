@@ -2,10 +2,45 @@
 <html lang="es">
 <head>
 <meta charset="UTF-8">
-<title>Fútbol 3vs3</title>
+<title>Fútbol</title>
 <style>
   html,body{margin:0;background:transparent;overflow:hidden;height:100vh;font-family:Arial,sans-serif;}
   .escenario{position:relative;width:100vw;height:100vh;display:flex;align-items:center;justify-content:center;}
+
+  .oculto{display:none !important;}
+
+  /* --- espera --- */
+  .vacio{color:#F2EFE6;text-align:center;font-size:16px;opacity:0.8;text-shadow:0 2px 4px rgba(0,0,0,0.8);}
+
+  /* --- votación --- */
+  .votacion-banner{background:rgba(0,0,0,0.75);border:2px solid #C9A24B;border-radius:12px;padding:20px 30px;
+    color:#F2EFE6;text-align:center;min-width:260px;}
+  .votacion-banner .pregunta{font-size:18px;font-weight:bold;margin-bottom:10px;}
+  .votacion-banner .votos{display:flex;justify-content:space-between;gap:20px;font-size:22px;font-weight:900;}
+  .votacion-banner .si{color:#4caf6a;}
+  .votacion-banner .no{color:#B23A2F;}
+  .votacion-banner .ayuda{font-size:11px;color:#7A8C82;margin-top:10px;}
+
+  /* --- entrenamiento --- */
+  .cancha-entreno{position:relative;width:70vw;max-width:600px;aspect-ratio:16/9;
+    background:repeating-linear-gradient(0deg,#1a5c3a 0 30px,#177a4a 30px 60px);
+    border:4px solid #F2EFE6;border-radius:6px;overflow:hidden;}
+  .arco-entreno{position:absolute;top:6%;left:50%;transform:translateX(-50%);width:38%;height:22%;
+    border:5px solid #F2EFE6;border-bottom:none;}
+  .arquero-entreno{position:absolute;top:14%;left:50%;transform:translateX(-50%);font-size:38px;z-index:3;transition:left 0.4s;}
+  .tirador-avatar{position:absolute;bottom:8%;left:50%;transform:translateX(-50%);z-index:3;text-align:center;}
+  .tirador-avatar img{width:56px;height:56px;border-radius:50%;object-fit:cover;border:3px solid #C9A24B;box-shadow:0 2px 8px rgba(0,0,0,0.6);}
+  .tirador-avatar .n{color:#F2EFE6;font-size:11px;margin-top:2px;text-shadow:0 1px 3px rgba(0,0,0,0.9);}
+  .resultado-tiro{position:absolute;top:40%;left:50%;transform:translate(-50%,-50%);
+    font-size:26px;font-weight:900;text-shadow:0 2px 8px rgba(0,0,0,0.8);opacity:0;z-index:6;}
+  .resultado-tiro.mostrar{animation:popfade 1.8s ease-out;}
+  .resultado-tiro.gol{color:#C9A24B;}
+  .resultado-tiro.atajada{color:#B23A2F;}
+  .banda-espera{position:absolute;bottom:2%;left:50%;transform:translateX(-50%);display:flex;gap:8px;z-index:2;}
+  .banda-espera img{width:30px;height:30px;border-radius:50%;object-fit:cover;border:2px solid #F2EFE6;opacity:0.85;}
+  .titulo-entreno{position:absolute;top:16px;left:50%;transform:translateX(-50%);color:#C9A24B;font-weight:bold;font-size:14px;text-shadow:0 2px 4px rgba(0,0,0,0.8);z-index:5;}
+
+  /* --- partido --- */
   .marcador{position:absolute;top:16px;left:50%;transform:translateX(-50%);
     background:rgba(0,0,0,0.65);border:2px solid #C9A24B;border-radius:10px;
     padding:8px 22px;color:#F2EFE6;display:flex;align-items:center;gap:16px;font-weight:bold;font-size:18px;z-index:6;}
@@ -18,221 +53,328 @@
   .arco{position:absolute;top:26%;width:5%;height:48%;
     border:5px solid #F2EFE6;
     background-image:repeating-linear-gradient(0deg, transparent 0 8px, rgba(242,239,230,0.35) 8px 9px),
-                      repeating-linear-gradient(90deg, transparent 0 8px, rgba(242,239,230,0.35) 8px 9px);
-    box-shadow:0 0 10px rgba(0,0,0,0.4) inset;}
+                      repeating-linear-gradient(90deg, transparent 0 8px, rgba(242,239,230,0.35) 8px 9px);}
   .arco.izq{left:0;border-left:none;border-radius:0 4px 4px 0;}
   .arco.der{right:0;border-right:none;border-radius:4px 0 0 4px;}
-  .jugador{position:absolute;width:52px;height:52px;transform:translate(-50%,-50%);transition:left 1s linear, top 1s linear;text-align:center;z-index:2;}
-  .jugador img{width:44px;height:44px;border-radius:50%;object-fit:cover;background:#333;box-shadow:0 2px 8px rgba(0,0,0,0.6);}
-  .jugador.A img{border:3px solid #C9A24B;}
-  .jugador.B img{border:3px solid #B23A2F;}
-  .jugador.con-pelota img{box-shadow:0 0 0 4px rgba(255,255,255,0.6), 0 2px 10px rgba(0,0,0,0.7);}
-  .jugador.es-arquero img{border-color:#F2EFE6 !important; border-width:3px;}
-  .jugador.es-arquero::after{content:'🧤';position:absolute;bottom:-4px;right:-2px;font-size:16px;}
-  .jugador .n{font-size:9px;color:#F2EFE6;text-shadow:0 1px 3px rgba(0,0,0,0.9);white-space:nowrap;max-width:70px;overflow:hidden;text-overflow:ellipsis;margin-top:1px;}
-  .pelota-partido{position:absolute;font-size:20px;transform:translate(-50%,-50%);transition:left 1s linear, top 1s linear;z-index:3;filter:drop-shadow(0 2px 4px rgba(0,0,0,0.7));}
-  .gol-flash{position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);
-    font-size:54px;font-weight:900;color:#C9A24B;text-shadow:0 2px 10px rgba(0,0,0,0.8);
-    opacity:0;pointer-events:none;z-index:10;}
-  .atajada-flash{position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);
-    font-size:38px;font-weight:900;color:#B23A2F;text-shadow:0 2px 10px rgba(0,0,0,0.8);
-    opacity:0;pointer-events:none;z-index:10;}
-  .atajada-flash.mostrar{animation:golanim 1.4s ease-out;}
-  .gol-flash.mostrar{animation:golanim 1.8s ease-out;}
-  @keyframes golanim{
+
+  .jugador{position:absolute;width:52px;transform:translate(-50%,-50%);
+    transition:left 0.9s linear, top 0.9s linear;text-align:center;z-index:2;}
+  .jugador img{width:44px;height:44px;border-radius:50%;object-fit:cover;background:#333;box-shadow:0 2px 8px rgba(0,0,0,0.6);display:block;margin:0 auto;}
+  .jugador.eq-A img{border:3px solid #C9A24B;}
+  .jugador.eq-B img{border:3px solid #B23A2F;}
+  .jugador.con-pelota img{box-shadow:0 0 0 4px rgba(255,255,255,0.7), 0 2px 10px rgba(0,0,0,0.7);}
+  .jugador.es-arquero img{border-color:#F2EFE6;}
+  .jugador .badge-arquero{position:absolute;bottom:-2px;right:2px;font-size:14px;}
+  .jugador .n{font-size:9px;color:#F2EFE6;text-shadow:0 1px 3px rgba(0,0,0,0.9);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;margin-top:1px;}
+
+  .pelota-partido{position:absolute;width:22px;height:22px;line-height:22px;text-align:center;
+    font-size:18px;z-index:4;filter:drop-shadow(0 2px 4px rgba(0,0,0,0.7));pointer-events:none;}
+  .pelota-sombra{position:absolute;width:16px;height:6px;border-radius:50%;background:rgba(0,0,0,0.35);
+    transform:translate(-50%,-50%);z-index:2;pointer-events:none;transition:opacity 0.2s;}
+
+  .flash{position:absolute;top:38%;left:50%;transform:translate(-50%,-50%);
+    font-weight:900;text-shadow:0 2px 10px rgba(0,0,0,0.85);opacity:0;pointer-events:none;z-index:10;
+    white-space:nowrap;}
+  .flash.gol{font-size:46px;color:#C9A24B;}
+  .flash.atajada{font-size:32px;color:#B23A2F;}
+  .flash.mostrar{animation:popfade 1.6s ease-out forwards;}
+  @keyframes popfade{
     0%{opacity:0;transform:translate(-50%,-50%) scale(0.5);}
     20%{opacity:1;transform:translate(-50%,-50%) scale(1.15);}
-    80%{opacity:1;transform:translate(-50%,-50%) scale(1);}
+    75%{opacity:1;transform:translate(-50%,-50%) scale(1);}
     100%{opacity:0;transform:translate(-50%,-50%) scale(1);}
   }
+
   .final-banner{position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);
-    background:rgba(0,0,0,0.75);border:2px solid #C9A24B;border-radius:12px;padding:20px 30px;
+    background:rgba(0,0,0,0.8);border:2px solid #C9A24B;border-radius:12px;padding:20px 30px;
     color:#F2EFE6;text-align:center;z-index:10;font-size:20px;font-weight:bold;}
-  .vacio{color:#F2EFE6;text-align:center;font-size:16px;opacity:0.8;text-shadow:0 2px 4px rgba(0,0,0,0.8);}
-
-  /* --- entrenamiento --- */
-  .cancha-entreno{position:relative;width:70vw;max-width:600px;aspect-ratio:16/9;
-    background:repeating-linear-gradient(0deg,#1a5c3a 0 30px,#177a4a 30px 60px);
-    border:4px solid #F2EFE6;border-radius:6px;overflow:hidden;}
-  .arco-entreno{position:absolute;top:6%;left:50%;transform:translateX(-50%);width:38%;height:22%;
-    border:5px solid #F2EFE6;border-bottom:none;}
-  .arquero{position:absolute;top:14%;left:50%;transform:translateX(-50%);font-size:38px;z-index:3;transition:left 0.4s;}
-  .tirador-avatar{position:absolute;bottom:8%;left:50%;transform:translateX(-50%);z-index:3;text-align:center;}
-  .tirador-avatar img{width:56px;height:56px;border-radius:50%;object-fit:cover;border:3px solid #C9A24B;box-shadow:0 2px 8px rgba(0,0,0,0.6);}
-  .tirador-avatar .n{color:#F2EFE6;font-size:11px;margin-top:2px;text-shadow:0 1px 3px rgba(0,0,0,0.9);}
-  .pelota{position:absolute;left:50%;bottom:16%;transform:translateX(-50%);font-size:26px;z-index:4;transition:all 0.8s ease-in;}
-  .pelota.disparo-gol{bottom:16%;animation:tiroGol 0.8s ease-in forwards;}
-  .pelota.disparo-atajada{animation:tiroAtajado 0.8s ease-in forwards;}
-  @keyframes tiroGol{ to { bottom:16%; top:16%; left:calc(50% + 30px); } }
-  @keyframes tiroAtajado{ to { bottom:75%; left:50%; } }
-  .resultado-tiro{position:absolute;top:40%;left:50%;transform:translate(-50%,-50%);
-    font-size:26px;font-weight:900;text-shadow:0 2px 8px rgba(0,0,0,0.8);opacity:0;z-index:6;}
-  .resultado-tiro.mostrar{animation:golanim 1.8s ease-out;}
-  .resultado-tiro.gol{color:#C9A24B;}
-  .resultado-tiro.atajada{color:#B23A2F;}
-  .banda-espera{position:absolute;bottom:2%;left:50%;transform:translateX(-50%);display:flex;gap:8px;z-index:2;}
-  .banda-espera img{width:30px;height:30px;border-radius:50%;object-fit:cover;border:2px solid #F2EFE6;opacity:0.85;}
-  .titulo-entreno{position:absolute;top:16px;left:50%;transform:translateX(-50%);color:#C9A24B;font-weight:bold;font-size:14px;text-shadow:0 2px 4px rgba(0,0,0,0.8);z-index:5;}
-
-  .votacion-banner{position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);
-    background:rgba(0,0,0,0.75);border:2px solid #C9A24B;border-radius:12px;padding:20px 30px;
-    color:#F2EFE6;text-align:center;z-index:10;min-width:260px;}
-  .votacion-banner .pregunta{font-size:18px;font-weight:bold;margin-bottom:10px;}
-  .votacion-banner .votos{display:flex;justify-content:space-between;gap:20px;font-size:22px;font-weight:900;}
-  .votacion-banner .si{color:#4caf6a;}
-  .votacion-banner .no{color:#B23A2F;}
-  .votacion-banner .ayuda{font-size:11px;color:#7A8C82;margin-top:10px;}
 </style>
 </head>
 <body>
 <div class="escenario" id="escenario">
-  <div class="vacio">Esperando 6 jugadores (comentarios distintos) para armar el próximo partido...</div>
-</div>
 
-<script>
-let ultimoGolMostrado = null;
-let ultimoTiroMostrado = null;
-let ultimoTiroPartidoMostrado = null;
+  <div class="vacio oculto" id="vista-vacio">Esperando jugadores (comentarios distintos) para armar el próximo partido...</div>
 
-function renderEntrenamiento(entrenamiento){
-  const esc = document.getElementById('escenario');
+  <div class="votacion-banner oculto" id="vista-votacion">
+    <div class="pregunta" id="v-pregunta"></div>
+    <div class="votos"><span class="si" id="v-si"></span><span class="no" id="v-no"></span></div>
+    <div class="ayuda" id="v-ayuda"></div>
+  </div>
 
-  if(!entrenamiento || !entrenamiento.jugadoresEnCampo || entrenamiento.jugadoresEnCampo.length === 0){
-    esc.innerHTML = '<div class="vacio">Esperando 6 jugadores (comentarios distintos) para armar el próximo partido...</div>';
-    ultimoTiroMostrado = null;
-    return;
-  }
-
-  const esNuevo = ultimoTiroMostrado !== entrenamiento.t;
-  if(esNuevo) ultimoTiroMostrado = entrenamiento.t;
-
-  const bandaHtml = entrenamiento.jugadoresEnCampo
-    .filter(j => j.nombre !== entrenamiento.tirador)
-    .map(j => `<img src="${j.avatar||''}" onerror="this.style.opacity=0.2" title="${j.nombre}">`).join('');
-
-  const claseArquero = esNuevo ? (entrenamiento.gol ? 'errado' : 'atajando') : '';
-  const claseBola = esNuevo ? (entrenamiento.gol ? 'disparo-gol' : 'disparo-atajada') : '';
-  const resultadoTxt = entrenamiento.gol ? '¡GOOOL!' : '¡ATAJADA!';
-  const resultadoClase = entrenamiento.gol ? 'gol' : 'atajada';
-
-  esc.innerHTML = `
-    <div class="cancha-entreno">
-      <div class="titulo-entreno">⚽ Entrenamiento — faltan ${6 - entrenamiento.jugadoresEnCampo.length} para el partido</div>
-      <div class="arco-entreno"></div>
-      <div class="arquero" style="left:${entrenamiento.gol ? '70%':'50%'};">🧤</div>
-      <div class="pelota ${claseBola}">⚽</div>
-      <div class="tirador-avatar">
-        <img src="${entrenamiento.avatarTirador||''}" onerror="this.style.opacity=0.3">
-        <div class="n">${entrenamiento.tirador}</div>
-      </div>
-      <div class="resultado-tiro ${resultadoClase} ${esNuevo?'mostrar':''}">${resultadoTxt}</div>
-      <div class="banda-espera">${bandaHtml}</div>
+  <div class="cancha-entreno oculto" id="vista-entreno">
+    <div class="titulo-entreno" id="e-titulo"></div>
+    <div class="arco-entreno"></div>
+    <div class="arquero-entreno" id="e-arquero">🧤</div>
+    <div class="tirador-avatar" id="e-tirador">
+      <img id="e-tirador-img" src="">
+      <div class="n" id="e-tirador-nombre"></div>
     </div>
-  `;
-}
+    <div class="resultado-tiro" id="e-resultado"></div>
+    <div class="banda-espera" id="e-banda"></div>
+  </div>
 
-function renderVotacion(votacion){
-  const esc = document.getElementById('escenario');
-  const etiqueta = votacion.modo === 1 ? '1 vs 1' : '2 vs 2';
-  const segRestantes = Math.max(0, Math.ceil((votacion.finalizaEn - Date.now())/1000));
-  esc.innerHTML = `
-    <div class="votacion-banner">
-      <div class="pregunta">🗳️ ¿Jugamos ${etiqueta} ya?</div>
-      <div class="votos"><span class="si">SI: ${votacion.si}</span><span class="no">NO: ${votacion.no}</span></div>
-      <div class="ayuda">Comentá SI o NO · ${segRestantes}s</div>
+  <div class="oculto" id="vista-partido">
+    <div class="marcador" id="p-marcador">
+      <span id="p-nombreA"></span>
+      <span class="reloj" id="p-reloj"></span>
+      <span id="p-nombreB"></span>
     </div>
-  `;
-}
-
-function render(partido, entrenamiento, votacion){
-  if(partido && partido.activo){
-    renderPartido(partido);
-  } else if(votacion && votacion.activo){
-    renderVotacion(votacion);
-  } else if(entrenamiento && entrenamiento.jugadoresEnCampo && entrenamiento.jugadoresEnCampo.length > 0){
-    renderEntrenamiento(entrenamiento);
-  } else if(partido && partido.terminado){
-    renderPartido(partido);
-  } else {
-    document.getElementById('escenario').innerHTML = '<div class="vacio">Esperando jugadores (comentarios distintos) para armar el próximo partido...</div>';
-  }
-}
-
-function renderPartido(partido){
-  const esc = document.getElementById('escenario');
-
-  if(!partido || !partido.equipoA){
-    esc.innerHTML = '<div class="vacio">Esperando 6 jugadores (comentarios distintos) para armar el próximo partido...</div>';
-    ultimoGolMostrado = null;
-    return;
-  }
-
-  const m = Math.floor(partido.tiempoRestante/60);
-  const s = (partido.tiempoRestante%60).toString().padStart(2,'0');
-
-  const todosJugadores = [...partido.equipoA.jugadores, ...partido.equipoB.jugadores];
-  const jugadoresHtml = (equipo, letra) => equipo.jugadores.map(j => `
-    <div class="jugador ${letra} ${j.nombre===partido.posesion?'con-pelota':''} ${j.arquero?'es-arquero':''}" style="left:${j.x}%; top:${j.y}%;">
-      <img src="${j.avatar||''}" onerror="this.style.opacity=0.3">
-      <div class="n">${j.nombre}</div>
-    </div>
-  `).join('');
-
-  const conPelota = todosJugadores.find(j => j.nombre === partido.posesion) || todosJugadores[0];
-  const pelotaHtml = conPelota ? `<div class="pelota-partido" style="left:${conPelota.x+4}%; top:${conPelota.y-4}%;">⚽</div>` : '';
-
-  let atajadaHtml = '';
-  if(partido.ultimoTiro && partido.ultimoTiro.gol === false){
-    const esNueva = ultimoTiroPartidoMostrado !== partido.ultimoTiro.t;
-    if(esNueva) ultimoTiroPartidoMostrado = partido.ultimoTiro.t;
-    atajadaHtml = `<div class="atajada-flash ${esNueva?'mostrar':''}">🧤 ¡ATAJADA!</div>`;
-  }
-
-  let golHtml = '';
-  if(partido.ultimoGol){
-    const esNuevo = ultimoGolMostrado !== partido.ultimoGol.t;
-    if(esNuevo) ultimoGolMostrado = partido.ultimoGol.t;
-    const eq = partido.ultimoGol.equipo === 'equipoA' ? partido.equipoA : partido.equipoB;
-    golHtml = `<div class="gol-flash ${esNuevo?'mostrar':''}">¡GOOOL DE ${eq.nombre.toUpperCase()}!</div>`;
-  }
-
-  const bannerFinal = partido.terminado ? `
-    <div class="final-banner">
-      🏁 Final del partido<br>
-      ${partido.equipoA.nombre} ${partido.equipoA.goles} - ${partido.equipoB.goles} ${partido.equipoB.nombre}
-    </div>` : '';
-
-  esc.innerHTML = `
-    <div class="marcador">
-      <span>${partido.equipoA.nombre} ${partido.equipoA.goles}</span>
-      <span class="reloj">${m}:${s}</span>
-      <span>${partido.equipoB.goles} ${partido.equipoB.nombre}</span>
-    </div>
-    <div class="cancha">
+    <div class="cancha" id="p-cancha">
       <div class="linea-media"></div>
       <div class="circulo-medio"></div>
       <div class="arco izq"></div>
       <div class="arco der"></div>
-      ${jugadoresHtml(partido.equipoA, 'A')}
-      ${jugadoresHtml(partido.equipoB, 'B')}
-      ${pelotaHtml}
-      ${golHtml}
-      ${atajadaHtml}
-      ${bannerFinal}
+      <!-- los jugadores y la pelota se agregan acá por JS y se mantienen -->
     </div>
-  `;
+  </div>
+
+</div>
+
+<script>
+// ===== estado local de la pantalla (para no recrear elementos y que el movimiento se vea) =====
+let partidoIdActual = null;
+let jugadorEls = {}; // nombre -> elemento DOM
+let pelotaEl = null;
+let sombraEl = null;
+let ultimoGolMostrado = null;
+let ultimoTiroPartidoMostrado = null;
+let ultimoTiroEntrenoMostrado = null;
+
+// --- física de la pelota (independiente del polling del servidor) ---
+let bola = { x: 50, y: 50, carrierNombre: null, modo: 'quieta', origen: null, destino: null, inicioT: 0, duracion: 700 };
+
+function lerp(a, b, t){ return a + (b - a) * t; }
+
+function posicionActualJugador(nombre){
+  const el = jugadorEls[nombre];
+  if(!el) return null;
+  return { x: parseFloat(el.style.left), y: parseFloat(el.style.top) };
+}
+
+function aplicarPosicionPelota(x, y, alturaPx, escala){
+  if(!pelotaEl || !sombraEl) return;
+  pelotaEl.style.left = x + '%';
+  pelotaEl.style.top = y + '%';
+  pelotaEl.style.transform = `translate(-50%,-50%) translateY(-${alturaPx}px) scale(${escala})`;
+  sombraEl.style.left = x + '%';
+  sombraEl.style.top = y + '%';
+  sombraEl.style.opacity = Math.max(0.15, 0.4 - alturaPx / 60);
+}
+
+function dispararTiro(destino, fueGol){
+  bola.modo = 'volando';
+  bola.origen = { x: bola.x, y: bola.y };
+  bola.destino = { x: destino.x, y: destino.y };
+  bola.inicioT = performance.now();
+  bola.duracion = 650;
+  bola.fueGol = fueGol;
+}
+
+function loopFisica(ahora){
+  requestAnimationFrame(loopFisica);
+  if(!pelotaEl) return;
+
+  if(bola.modo === 'volando' || bola.modo === 'rebotando'){
+    const t = Math.min(1, (ahora - bola.inicioT) / bola.duracion);
+    bola.x = lerp(bola.origen.x, bola.destino.x, t);
+    bola.y = lerp(bola.origen.y, bola.destino.y, t);
+    const picoAltura = bola.modo === 'volando' ? 20 : 9;
+    const altura = Math.sin(Math.PI * t) * picoAltura;
+    const escala = 1 + (altura / picoAltura) * 0.3;
+    aplicarPosicionPelota(bola.x, bola.y, altura, escala);
+
+    if(t >= 1){
+      if(bola.modo === 'volando' && !bola.fueGol){
+        // rebota de vuelta hacia el medio campo, como si el arquero la despejara
+        bola.modo = 'rebotando';
+        bola.origen = { x: bola.destino.x, y: bola.destino.y };
+        bola.destino = { x: 50, y: 25 + Math.random() * 50 };
+        bola.inicioT = ahora;
+        bola.duracion = 500;
+      } else {
+        bola.modo = 'siguiendo';
+      }
+    }
+  } else {
+    // rodando pegada al jugador que la lleva, con inercia (no salta directo a su posición)
+    const carrier = posicionActualJugador(bola.carrierNombre);
+    if(carrier){
+      const objetivoX = carrier.x + 3;
+      const objetivoY = carrier.y - 4;
+      bola.x += (objetivoX - bola.x) * 0.12;
+      bola.y += (objetivoY - bola.y) * 0.12;
+    }
+    aplicarPosicionPelota(bola.x, bola.y, 0, 1);
+  }
+}
+requestAnimationFrame(loopFisica);
+
+function mostrarSolo(idVisible){
+  ['vista-vacio','vista-votacion','vista-entreno','vista-partido'].forEach(id=>{
+    document.getElementById(id).classList.toggle('oculto', id !== idVisible);
+  });
+}
+
+function renderVacio(){
+  mostrarSolo('vista-vacio');
+}
+
+function renderVotacion(v){
+  mostrarSolo('vista-votacion');
+  const etiqueta = v.modo === 1 ? '1 vs 1' : '2 vs 2';
+  const segs = Math.max(0, Math.ceil((v.finalizaEn - Date.now())/1000));
+  document.getElementById('v-pregunta').textContent = `🗳️ ¿Jugamos ${etiqueta} ya?`;
+  document.getElementById('v-si').textContent = `SI: ${v.si}`;
+  document.getElementById('v-no').textContent = `NO: ${v.no}`;
+  document.getElementById('v-ayuda').textContent = `Comentá SI o NO · ${segs}s`;
+}
+
+function renderEntreno(e){
+  mostrarSolo('vista-entreno');
+  document.getElementById('e-titulo').textContent = `⚽ Entrenamiento — faltan ${Math.max(0,6-e.jugadoresEnCampo.length)} para el partido`;
+  document.getElementById('e-arquero').style.left = e.gol ? '70%' : '50%';
+  document.getElementById('e-tirador-img').src = e.avatarTirador || '';
+  document.getElementById('e-tirador-nombre').textContent = e.tirador;
+
+  const esNuevo = ultimoTiroEntrenoMostrado !== e.t;
+  const resultadoEl = document.getElementById('e-resultado');
+  if(esNuevo){
+    ultimoTiroEntrenoMostrado = e.t;
+    resultadoEl.textContent = e.gol ? '¡GOOOL!' : '¡ATAJADA!';
+    resultadoEl.className = 'resultado-tiro ' + (e.gol ? 'gol' : 'atajada');
+    // forzamos replay de la animación
+    void resultadoEl.offsetWidth;
+    resultadoEl.classList.add('mostrar');
+  }
+
+  document.getElementById('e-banda').innerHTML = e.jugadoresEnCampo
+    .filter(j => j.nombre !== e.tirador)
+    .map(j => `<img src="${j.avatar||''}" onerror="this.style.opacity=0.2" title="${j.nombre}">`).join('');
+}
+
+function crearFlash(contenedor, texto, clase){
+  const el = document.createElement('div');
+  el.className = `flash ${clase}`;
+  el.textContent = texto;
+  contenedor.appendChild(el);
+  requestAnimationFrame(() => el.classList.add('mostrar'));
+  setTimeout(() => el.remove(), 1700);
+}
+
+function asegurarJugadorEl(cancha, j, letra){
+  let el = jugadorEls[j.nombre];
+  if(!el){
+    el = document.createElement('div');
+    el.className = `jugador eq-${letra} ${j.arquero?'es-arquero':''}`;
+    el.innerHTML = `<img src="${j.avatar||''}" onerror="this.style.opacity=0.3">
+      ${j.arquero ? '<div class="badge-arquero">🧤</div>' : ''}
+      <div class="n">${j.nombre}</div>`;
+    cancha.appendChild(el);
+    jugadorEls[j.nombre] = el;
+  }
+  el.style.left = j.x + '%';
+  el.style.top = j.y + '%';
+  el.classList.toggle('con-pelota', j.tienePelota);
+  return el;
+}
+
+function renderPartido(p){
+  mostrarSolo('vista-partido');
+  const cancha = document.getElementById('p-cancha');
+
+  if(partidoIdActual !== p.id){
+    // partido nuevo: limpiamos jugadores viejos y arrancamos de cero
+    Object.values(jugadorEls).forEach(el => el.remove());
+    jugadorEls = {};
+    if(pelotaEl){ pelotaEl.remove(); pelotaEl = null; }
+    if(sombraEl){ sombraEl.remove(); sombraEl = null; }
+    partidoIdActual = p.id;
+    ultimoGolMostrado = null;
+    ultimoTiroPartidoMostrado = null;
+    bola = { x: 50, y: 50, carrierNombre: p.posesion, modo: 'quieta', origen: null, destino: null, inicioT: 0, duracion: 700 };
+  }
+
+  document.getElementById('p-nombreA').textContent = `${p.equipoA.nombre} ${p.equipoA.goles}`;
+  document.getElementById('p-nombreB').textContent = `${p.equipoB.goles} ${p.equipoB.nombre}`;
+  const m = Math.floor(p.tiempoRestante/60);
+  const s = (p.tiempoRestante%60).toString().padStart(2,'0');
+  document.getElementById('p-reloj').textContent = `${m}:${s}`;
+
+  p.equipoA.jugadores.forEach(j => asegurarJugadorEl(cancha, {...j, tienePelota: j.nombre===p.posesion}, 'A'));
+  p.equipoB.jugadores.forEach(j => asegurarJugadorEl(cancha, {...j, tienePelota: j.nombre===p.posesion}, 'B'));
+
+  if(!pelotaEl){
+    pelotaEl = document.createElement('div');
+    pelotaEl.className = 'pelota-partido';
+    pelotaEl.textContent = '⚽';
+    sombraEl = document.createElement('div');
+    sombraEl.className = 'pelota-sombra';
+    cancha.appendChild(sombraEl);
+    cancha.appendChild(pelotaEl);
+  }
+
+  // si el servidor avisa un tiro nuevo, disparamos la animación de física (arco + rebote si no fue gol)
+  if(p.ultimoTiro){
+    const esNuevoTiro = ultimoTiroPartidoMostrado !== p.ultimoTiro.t;
+    if(esNuevoTiro && bola.modo !== 'volando'){
+      ultimoTiroPartidoMostrado = p.ultimoTiro.t;
+      dispararTiro({ x: p.ultimoTiro.x, y: p.ultimoTiro.y }, p.ultimoTiro.gol);
+      if(p.ultimoTiro.gol === false){
+        crearFlash(cancha, '🧤 ¡ATAJADA!', 'atajada');
+      }
+    }
+  }
+
+  // mientras nadie está tirando, la pelota sigue al jugador que la lleva
+  if(bola.modo === 'quieta' || bola.modo === 'siguiendo'){
+    bola.carrierNombre = p.posesion;
+    bola.modo = 'siguiendo';
+  }
+
+  if(p.ultimoGol){
+    const esNuevo = ultimoGolMostrado !== p.ultimoGol.t;
+    if(esNuevo){
+      ultimoGolMostrado = p.ultimoGol.t;
+      const eq = p.ultimoGol.equipo === 'equipoA' ? p.equipoA : p.equipoB;
+      crearFlash(cancha, `¡GOOOL DE ${eq.nombre.toUpperCase()}!`, 'gol');
+    }
+  }
+
+  let banner = document.getElementById('p-final-banner');
+  if(p.terminado){
+    if(!banner){
+      banner = document.createElement('div');
+      banner.id = 'p-final-banner';
+      banner.className = 'final-banner';
+      cancha.appendChild(banner);
+    }
+    banner.innerHTML = `🏁 Final del partido<br>${p.equipoA.nombre} ${p.equipoA.goles} - ${p.equipoB.goles} ${p.equipoB.nombre}`;
+  } else if(banner){
+    banner.remove();
+  }
 }
 
 async function actualizar(){
   try{
     const res = await fetch('/api/estado');
     const estado = await res.json();
-    render(estado.partido, estado.entrenamiento, estado.votacion);
+
+    if(estado.partido && estado.partido.activo){
+      renderPartido(estado.partido);
+    } else if(estado.votacion && estado.votacion.activo){
+      renderVotacion(estado.votacion);
+    } else if(estado.entrenamiento && estado.entrenamiento.jugadoresEnCampo && estado.entrenamiento.jugadoresEnCampo.length > 0){
+      renderEntreno(estado.entrenamiento);
+    } else if(estado.partido && estado.partido.terminado){
+      renderPartido(estado.partido);
+    } else {
+      renderVacio();
+    }
   }catch(e){}
 }
 
 actualizar();
-setInterval(actualizar, 1000);
+setInterval(actualizar, 700);
 </script>
 </body>
 </html>
