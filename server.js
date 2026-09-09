@@ -22,6 +22,8 @@ const EQUIPOS = [
 const DURACION_RONDA = 5 * 60;
 const DURACION_DESEMPATE = 10;
 const DURACION_PARTIDO = 90;
+const ARCO_Y_MIN = 32;
+const ARCO_Y_MAX = 68;
 
 function estadoInicial() {
   const scores = {};
@@ -39,7 +41,8 @@ function estadoInicial() {
     pelea: peleaVacia(),
     partido: partidoVacio(),
     entrenamiento: null,
-    votacion: null
+    votacion: null,
+    penales: null
   };
 }
 
@@ -66,6 +69,7 @@ function cargarEstado() {
     data.partido.activo = false; // no arrancamos con un partido "colgado" al reiniciar
     if (data.entrenamiento === undefined) data.entrenamiento = null;
     data.votacion = null; // nunca arrancamos con una votación "colgada"
+    data.penales = null; // nunca arrancamos con penales "colgados"
     return data;
   } catch (e) {
     return estadoInicial();
@@ -321,8 +325,8 @@ function iniciarPartido(modo) {
 
     [...p.equipoA.jugadores, ...p.equipoB.jugadores].forEach(j => {
       if (j.arquero) {
-        // el arquero se queda pegado a su arco, solo se mueve un poco arriba/abajo
-        j.y = Math.min(66, Math.max(34, j.y + (Math.random() * 12 - 6)));
+        // el arquero se queda pegado a su arco, solo se mueve un poco arriba/abajo, siempre dentro del cajón
+        j.y = Math.min(ARCO_Y_MAX, Math.max(ARCO_Y_MIN, j.y + (Math.random() * 12 - 6)));
         return;
       }
     });
@@ -362,23 +366,26 @@ function iniciarPartido(modo) {
       atacante.y = Math.min(88, Math.max(12, atacante.y));
       p.posesion = atacante.nombre;
     } else {
-      // definición: remata al arco
+      // definición: remata al arco. Forzamos que el tiro apunte SIEMPRE adentro del cajón del arco,
+      // así nunca se ve un gol "afuera" ni se pierde en cualquier otro lado del campo.
       const arqueroRival = equipoDef.jugadores.find(x => x.arquero);
+      const yTiro = Math.min(ARCO_Y_MAX, Math.max(ARCO_Y_MIN, atacante.y));
       const golProbabilidad = arqueroRival ? 0.32 : 0.55; // sin arquero (1v1) cuesta menos
       const gol = Math.random() < golProbabilidad;
 
       atacante.x = metaX;
+      atacante.y = yTiro;
       p.posesion = atacante.nombre;
 
       if (arqueroRival) {
         arqueroRival.y = gol
-          ? (arqueroRival.y > 50 ? 32 : 68) // se tira para el otro lado, no llega
-          : atacante.y; // se para justo en la línea del remate
+          ? (yTiro > 50 ? ARCO_Y_MIN + 4 : ARCO_Y_MAX - 4) // se tira para el lado contrario, no llega
+          : yTiro; // se para justo en la línea del remate y la ataja
       }
 
       p.ultimoTiro = {
         gol, autor: atacante.nombre, equipo: j.equipoAtacanteId,
-        x: metaX, y: atacante.y, t: Date.now()
+        x: metaX, y: yTiro, t: Date.now()
       };
 
       if (gol) {
@@ -387,7 +394,30 @@ function iniciarPartido(modo) {
         agregarLog(`⚽ GOOOL de ${atacante.nombre} para ${equipoAtac.nombre}! (${p.equipoA.goles}-${p.equipoB.goles})`, 'gol');
       } else {
         const nombreArquero = arqueroRival ? arqueroRival.nombre : 'el rival';
-        agregarLog(`🧤 ${nombreArquero} atajó el remate de ${atacante.nombre}`, 'gol');
+        const insultos = [
+          '¡Anotate en un curso de fútbol!',
+          '¡Esa nunca entraba, ni de casualidad!',
+          '¡Volvé a la escuelita!',
+          '¡La próxima ni te acerques al arco!',
+          '¡Con esa puntería mejor jugá al truco!'
+        ];
+        const insulto = insultos[Math.floor(Math.random() * insultos.length)];
+        agregarLog(`🧤 ${nombreArquero} atajó el remate de ${atacante.nombre} y le grita corriendo: "${insulto}"`, 'gol');
+
+        // rarísima posibilidad: el arquero se va a insultar y deja el arco vacío... y se la meten
+        if (arqueroRival && Math.random() < 0.015) {
+          const equipoAtacId = j.equipoAtacanteId;
+          setTimeout(() => {
+            const pActual = estado.partido;
+            if (!pActual || !pActual.activo) return;
+            const eqAtac = pActual[equipoAtacId];
+            eqAtac.goles++;
+            pActual.ultimoGol = { equipo: equipoAtacId, autor: atacante.nombre, t: Date.now() };
+            pActual.posesion = atacante.nombre;
+            agregarLog(`😱 ¡Mientras ${nombreArquero} se fue a insultar dejó el arco VACÍO! ${atacante.nombre} la agarra de nuevo y... ¡GOOOL! (${pActual.equipoA.goles}-${pActual.equipoB.goles})`, 'campeon');
+            guardarEstado();
+          }, 1600);
+        }
       }
       p.jugada = null; // la próxima jugada arranca sola en el siguiente segundo
     }
@@ -399,7 +429,10 @@ function iniciarPartido(modo) {
       clearInterval(partidoInterval);
       const ga = p.equipoA.goles, gb = p.equipoB.goles;
       if (ga === gb) {
-        agregarLog(`🏁 Termina el partido: empate ${ga}-${gb} entre ${p.equipoA.nombre} y ${p.equipoB.nombre}`, 'campeon');
+        agregarLog(`🏁 Empate ${ga}-${gb} entre ${p.equipoA.nombre} y ${p.equipoB.nombre}. ¡Vamos a los penales!`, 'campeon');
+        guardarEstado();
+        setTimeout(() => iniciarPenales(p), 3000);
+        return;
       } else {
         const ganador = ga > gb ? p.equipoA.nombre : p.equipoB.nombre;
         agregarLog(`🏁 Termina el partido: ganó ${ganador} (${ga}-${gb})`, 'campeon');
@@ -414,6 +447,74 @@ function iniciarPartido(modo) {
     }
     guardarEstado();
   }, 1000);
+}
+
+function iniciarPenales(p) {
+  estado.penales = {
+    activo: true,
+    equipoA: p.equipoA,
+    equipoB: p.equipoB,
+    marcadorA: 0,
+    marcadorB: 0,
+    turno: 'equipoA',
+    idxA: 0,
+    idxB: 0,
+    tiro: null,
+    terminado: false,
+    ganador: null
+  };
+  guardarEstado();
+  ejecutarPenalSiguiente();
+}
+
+function ejecutarPenalSiguiente() {
+  const pe = estado.penales;
+  if (!pe || !pe.activo) return;
+
+  const equipoId = pe.turno;
+  const equipo = pe[equipoId];
+  const idxKey = equipoId === 'equipoA' ? 'idxA' : 'idxB';
+  const jugadores = equipo.jugadores;
+  const tomador = jugadores[pe[idxKey] % jugadores.length];
+  pe[idxKey]++;
+
+  const gol = Math.random() < 0.62; // en penal 1 vs 1 es más fácil convertir
+  pe.tiro = { equipo: equipoId, tirador: tomador.nombre, avatar: tomador.avatar, gol, t: Date.now() };
+
+  if (gol) {
+    if (equipoId === 'equipoA') pe.marcadorA++; else pe.marcadorB++;
+    agregarLog(`🎯 ${tomador.nombre} (${equipo.nombre}) convierte el penal (${pe.marcadorA}-${pe.marcadorB})`, 'gol');
+  } else {
+    agregarLog(`🧤 ${tomador.nombre} (${equipo.nombre}) remató y el arquero contuvo el penal (${pe.marcadorA}-${pe.marcadorB})`, 'gol');
+  }
+  guardarEstado();
+
+  setTimeout(() => {
+    if (pe.turno === 'equipoB') {
+      // ya tiraron los dos en esta ronda: si van distintos, se define ahí mismo
+      if (pe.marcadorA !== pe.marcadorB) {
+        pe.activo = false;
+        pe.terminado = true;
+        pe.ganador = pe.marcadorA > pe.marcadorB ? 'equipoA' : 'equipoB';
+        agregarLog(`🏆 ¡${pe[pe.ganador].nombre} gana la definición por penales ${pe.marcadorA}-${pe.marcadorB}!`, 'campeon');
+        guardarEstado();
+        setTimeout(() => {
+          estado.partido = partidoVacio();
+          estado.penales = null;
+          umbralPreguntado2 = 0;
+          umbralPreguntado4 = 0;
+          guardarEstado();
+          intentarFlujoPartidos();
+        }, 6000);
+        return;
+      }
+      pe.turno = 'equipoA';
+    } else {
+      pe.turno = 'equipoB';
+    }
+    guardarEstado();
+    ejecutarPenalSiguiente();
+  }, 3000);
 }
 
 function iniciarVotacion(modo) {
