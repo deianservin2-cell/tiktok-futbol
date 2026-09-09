@@ -37,7 +37,8 @@ function estadoInicial() {
     conectado: false,
     comentarios: [],
     pelea: peleaVacia(),
-    partido: partidoVacio()
+    partido: partidoVacio(),
+    entrenamiento: null
   };
 }
 
@@ -62,6 +63,7 @@ function cargarEstado() {
     data.pelea.activo = false; // no arrancamos con una pelea "colgada" al reiniciar
     if (!data.partido) data.partido = partidoVacio();
     data.partido.activo = false; // no arrancamos con un partido "colgado" al reiniciar
+    if (data.entrenamiento === undefined) data.entrenamiento = null;
     return data;
   } catch (e) {
     return estadoInicial();
@@ -290,6 +292,7 @@ function intentarAutoPartido() {
     terminado: false,
     ultimoGol: null
   };
+  estado.entrenamiento = null;
   agregarLog(`⚽ Arranca el partido: ${nombreA} vs ${nombreB}`, 'gol');
   guardarEstado();
 
@@ -335,6 +338,25 @@ function intentarAutoPartido() {
     guardarEstado();
   }, 1000);
 }
+
+// entrenamiento: mientras hay entre 1 y 5 en la cola, van pateando al arco de a uno
+setInterval(() => {
+  if (estado.partido.activo) { estado.entrenamiento = null; return; }
+  if (colaJugadores.length === 0) { estado.entrenamiento = null; guardarEstado(); return; }
+
+  const tirador = colaJugadores[Math.floor(Math.random() * colaJugadores.length)];
+  const convierte = Math.random() < 0.45;
+
+  estado.entrenamiento = {
+    jugadoresEnCampo: colaJugadores.map(j => ({ nombre: j.nombre, avatar: j.avatar })),
+    tirador: tirador.nombre,
+    avatarTirador: tirador.avatar,
+    gol: convierte,
+    t: Date.now()
+  };
+  agregarLog(convierte ? `⚽ ${tirador.nombre} pateó y... ¡GOL en el entrenamiento!` : `🧤 ${tirador.nombre} pateó pero el arquero la atajó`, 'gol');
+  guardarEstado();
+}, 3000);
 
 function conectar() {
   const opciones = {};
