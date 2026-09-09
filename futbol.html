@@ -5,27 +5,39 @@
 <title>Fútbol 3vs3</title>
 <style>
   html,body{margin:0;background:transparent;overflow:hidden;height:100vh;font-family:Arial,sans-serif;}
-  .escenario{width:100vw;height:100vh;display:flex;align-items:center;justify-content:center;}
+  .escenario{position:relative;width:100vw;height:100vh;display:flex;align-items:center;justify-content:center;}
   .marcador{position:absolute;top:16px;left:50%;transform:translateX(-50%);
-    background:rgba(0,0,0,0.55);border:2px solid #C9A24B;border-radius:10px;
-    padding:8px 22px;color:#F2EFE6;display:flex;align-items:center;gap:16px;font-weight:bold;font-size:18px;z-index:5;}
+    background:rgba(0,0,0,0.65);border:2px solid #C9A24B;border-radius:10px;
+    padding:8px 22px;color:#F2EFE6;display:flex;align-items:center;gap:16px;font-weight:bold;font-size:18px;z-index:6;}
   .marcador .reloj{color:#C9A24B;font-family:'Courier New',monospace;font-size:16px;}
   .cancha{position:relative;width:88vw;max-width:900px;aspect-ratio:16/10;
     background:repeating-linear-gradient(90deg,#1a5c3a 0 40px,#177a4a 40px 80px);
     border:4px solid #F2EFE6;border-radius:6px;overflow:hidden;}
   .linea-media{position:absolute;top:0;left:50%;width:2px;height:100%;background:rgba(242,239,230,0.6);}
   .circulo-medio{position:absolute;top:50%;left:50%;width:110px;height:110px;border:2px solid rgba(242,239,230,0.6);border-radius:50%;transform:translate(-50%,-50%);}
-  .arco{position:absolute;top:30%;width:14px;height:40%;border:3px solid rgba(242,239,230,0.8);}
-  .arco.izq{left:0;border-left:none;}
-  .arco.der{right:0;border-right:none;}
+  .arco{position:absolute;top:26%;width:5%;height:48%;
+    border:5px solid #F2EFE6;
+    background-image:repeating-linear-gradient(0deg, transparent 0 8px, rgba(242,239,230,0.35) 8px 9px),
+                      repeating-linear-gradient(90deg, transparent 0 8px, rgba(242,239,230,0.35) 8px 9px);
+    box-shadow:0 0 10px rgba(0,0,0,0.4) inset;}
+  .arco.izq{left:0;border-left:none;border-radius:0 4px 4px 0;}
+  .arco.der{right:0;border-right:none;border-radius:4px 0 0 4px;}
   .jugador{position:absolute;width:52px;height:52px;transform:translate(-50%,-50%);transition:left 1s linear, top 1s linear;text-align:center;z-index:2;}
   .jugador img{width:44px;height:44px;border-radius:50%;object-fit:cover;background:#333;box-shadow:0 2px 8px rgba(0,0,0,0.6);}
   .jugador.A img{border:3px solid #C9A24B;}
   .jugador.B img{border:3px solid #B23A2F;}
+  .jugador.con-pelota img{box-shadow:0 0 0 4px rgba(255,255,255,0.6), 0 2px 10px rgba(0,0,0,0.7);}
+  .jugador.es-arquero img{border-color:#F2EFE6 !important; border-width:3px;}
+  .jugador.es-arquero::after{content:'🧤';position:absolute;bottom:-4px;right:-2px;font-size:16px;}
   .jugador .n{font-size:9px;color:#F2EFE6;text-shadow:0 1px 3px rgba(0,0,0,0.9);white-space:nowrap;max-width:70px;overflow:hidden;text-overflow:ellipsis;margin-top:1px;}
+  .pelota-partido{position:absolute;font-size:20px;transform:translate(-50%,-50%);transition:left 1s linear, top 1s linear;z-index:3;filter:drop-shadow(0 2px 4px rgba(0,0,0,0.7));}
   .gol-flash{position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);
     font-size:54px;font-weight:900;color:#C9A24B;text-shadow:0 2px 10px rgba(0,0,0,0.8);
     opacity:0;pointer-events:none;z-index:10;}
+  .atajada-flash{position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);
+    font-size:38px;font-weight:900;color:#B23A2F;text-shadow:0 2px 10px rgba(0,0,0,0.8);
+    opacity:0;pointer-events:none;z-index:10;}
+  .atajada-flash.mostrar{animation:golanim 1.4s ease-out;}
   .gol-flash.mostrar{animation:golanim 1.8s ease-out;}
   @keyframes golanim{
     0%{opacity:0;transform:translate(-50%,-50%) scale(0.5);}
@@ -80,6 +92,7 @@
 <script>
 let ultimoGolMostrado = null;
 let ultimoTiroMostrado = null;
+let ultimoTiroPartidoMostrado = null;
 
 function renderEntrenamiento(entrenamiento){
   const esc = document.getElementById('escenario');
@@ -157,12 +170,23 @@ function renderPartido(partido){
   const m = Math.floor(partido.tiempoRestante/60);
   const s = (partido.tiempoRestante%60).toString().padStart(2,'0');
 
+  const todosJugadores = [...partido.equipoA.jugadores, ...partido.equipoB.jugadores];
   const jugadoresHtml = (equipo, letra) => equipo.jugadores.map(j => `
-    <div class="jugador ${letra}" style="left:${j.x}%; top:${j.y}%;">
+    <div class="jugador ${letra} ${j.nombre===partido.posesion?'con-pelota':''} ${j.arquero?'es-arquero':''}" style="left:${j.x}%; top:${j.y}%;">
       <img src="${j.avatar||''}" onerror="this.style.opacity=0.3">
       <div class="n">${j.nombre}</div>
     </div>
   `).join('');
+
+  const conPelota = todosJugadores.find(j => j.nombre === partido.posesion) || todosJugadores[0];
+  const pelotaHtml = conPelota ? `<div class="pelota-partido" style="left:${conPelota.x+4}%; top:${conPelota.y-4}%;">⚽</div>` : '';
+
+  let atajadaHtml = '';
+  if(partido.ultimoTiro && partido.ultimoTiro.gol === false){
+    const esNueva = ultimoTiroPartidoMostrado !== partido.ultimoTiro.t;
+    if(esNueva) ultimoTiroPartidoMostrado = partido.ultimoTiro.t;
+    atajadaHtml = `<div class="atajada-flash ${esNueva?'mostrar':''}">🧤 ¡ATAJADA!</div>`;
+  }
 
   let golHtml = '';
   if(partido.ultimoGol){
@@ -191,7 +215,9 @@ function renderPartido(partido){
       <div class="arco der"></div>
       ${jugadoresHtml(partido.equipoA, 'A')}
       ${jugadoresHtml(partido.equipoB, 'B')}
+      ${pelotaHtml}
       ${golHtml}
+      ${atajadaHtml}
       ${bannerFinal}
     </div>
   `;
