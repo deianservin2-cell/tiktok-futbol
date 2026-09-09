@@ -21,6 +21,7 @@ const EQUIPOS = [
 
 const DURACION_RONDA = 5 * 60;
 const DURACION_DESEMPATE = 10;
+const DURACION_PARTIDO = 90;
 
 function estadoInicial() {
   const scores = {};
@@ -256,7 +257,6 @@ let conn = null;
 // --- Fútbol 3 vs 3 (automático) ---
 let colaJugadores = [];
 let partidoInterval = null;
-const DURACION_PARTIDO = 90;
 
 function partidoVacio() {
   return { activo: false, equipoA: null, equipoB: null, tiempoRestante: DURACION_PARTIDO, terminado: false };
