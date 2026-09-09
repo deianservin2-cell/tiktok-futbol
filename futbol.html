@@ -54,8 +54,8 @@
     border:5px solid #F2EFE6;
     background-image:repeating-linear-gradient(0deg, transparent 0 8px, rgba(242,239,230,0.35) 8px 9px),
                       repeating-linear-gradient(90deg, transparent 0 8px, rgba(242,239,230,0.35) 8px 9px);}
-  .arco.izq{left:0;border-left:none;border-radius:0 4px 4px 0;}
-  .arco.der{right:0;border-right:none;border-radius:4px 0 0 4px;}
+  .arco.izq{left:0;border-left:none;border-radius:0 4px 4px 0;border-color:#C9A24B;}
+  .arco.der{right:0;border-right:none;border-radius:4px 0 0 4px;border-color:#B23A2F;}
 
   .jugador{position:absolute;width:52px;transform:translate(-50%,-50%);
     transition:left 0.9s linear, top 0.9s linear;text-align:center;z-index:2;}
@@ -111,6 +111,17 @@
     </div>
     <div class="resultado-tiro" id="e-resultado"></div>
     <div class="banda-espera" id="e-banda"></div>
+  </div>
+
+  <div class="cancha-entreno oculto" id="vista-penales">
+    <div class="titulo-entreno" id="pen-titulo"></div>
+    <div class="arco-entreno"></div>
+    <div class="arquero-entreno" id="pen-arquero">🧤</div>
+    <div class="tirador-avatar" id="pen-tirador">
+      <img id="pen-tirador-img" src="">
+      <div class="n" id="pen-tirador-nombre"></div>
+    </div>
+    <div class="resultado-tiro" id="pen-resultado"></div>
   </div>
 
   <div class="oculto" id="vista-partido">
@@ -210,9 +221,41 @@ function loopFisica(ahora){
 requestAnimationFrame(loopFisica);
 
 function mostrarSolo(idVisible){
-  ['vista-vacio','vista-votacion','vista-entreno','vista-partido'].forEach(id=>{
+  ['vista-vacio','vista-votacion','vista-entreno','vista-penales','vista-partido'].forEach(id=>{
     document.getElementById(id).classList.toggle('oculto', id !== idVisible);
   });
+}
+
+let ultimoTiroPenalMostrado = null;
+
+function renderPenales(pe){
+  mostrarSolo('vista-penales');
+  document.getElementById('pen-titulo').textContent =
+    `🥅 PENALES — ${pe.equipoA.nombre} ${pe.marcadorA} - ${pe.marcadorB} ${pe.equipoB.nombre}`;
+
+  if(pe.terminado && pe.ganador){
+    document.getElementById('pen-tirador').style.display = 'none';
+    const resEl = document.getElementById('pen-resultado');
+    resEl.textContent = `🏆 ¡GANÓ ${pe[pe.ganador].nombre.toUpperCase()}!`;
+    resEl.className = 'resultado-tiro gol mostrar';
+    return;
+  }
+  document.getElementById('pen-tirador').style.display = '';
+  if(!pe.tiro) return;
+
+  document.getElementById('pen-tirador-img').src = pe.tiro.avatar || '';
+  document.getElementById('pen-tirador-nombre').textContent = pe.tiro.tirador;
+  document.getElementById('pen-arquero').style.left = pe.tiro.gol ? '70%' : '50%';
+
+  const esNuevo = ultimoTiroPenalMostrado !== pe.tiro.t;
+  if(esNuevo){
+    ultimoTiroPenalMostrado = pe.tiro.t;
+    const resEl = document.getElementById('pen-resultado');
+    resEl.textContent = pe.tiro.gol ? '¡GOOOL!' : '¡ATAJADA!';
+    resEl.className = 'resultado-tiro ' + (pe.tiro.gol ? 'gol' : 'atajada');
+    void resEl.offsetWidth;
+    resEl.classList.add('mostrar');
+  }
 }
 
 function renderVacio(){
@@ -361,6 +404,8 @@ async function actualizar(){
 
     if(estado.partido && estado.partido.activo){
       renderPartido(estado.partido);
+    } else if(estado.penales && (estado.penales.activo || estado.penales.terminado)){
+      renderPenales(estado.penales);
     } else if(estado.votacion && estado.votacion.activo){
       renderVotacion(estado.votacion);
     } else if(estado.entrenamiento && estado.entrenamiento.jugadoresEnCampo && estado.entrenamiento.jugadoresEnCampo.length > 0){
