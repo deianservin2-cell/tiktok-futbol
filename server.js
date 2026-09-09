@@ -276,12 +276,15 @@ function posAleatoria() {
   return { x: 10 + Math.random() * 80, y: 10 + Math.random() * 80 };
 }
 
-function armarEquipo(nombre, jugadores) {
-  return {
-    nombre,
-    goles: 0,
-    jugadores: jugadores.map(j => ({ ...j, ...posAleatoria() }))
-  };
+function armarEquipo(nombre, jugadores, ladoGol) {
+  const armados = jugadores.map(j => ({ ...j, ...posAleatoria() }));
+  if (armados.length >= 2) {
+    const arq = armados[armados.length - 1];
+    arq.arquero = true;
+    arq.x = ladoGol === 'izq' ? 8 : 92;
+    arq.y = 50;
+  }
+  return { nombre, goles: 0, jugadores: armados, ladoGol };
 }
 
 function iniciarPartido(modo) {
@@ -296,11 +299,14 @@ function iniciarPartido(modo) {
   estado.partido = {
     activo: true,
     modo,
-    equipoA: armarEquipo(nombreA, grupo.slice(0, modo)),
-    equipoB: armarEquipo(nombreB, grupo.slice(modo, necesarios)),
+    equipoA: armarEquipo(nombreA, grupo.slice(0, modo), 'izq'),
+    equipoB: armarEquipo(nombreB, grupo.slice(modo, necesarios), 'der'),
     tiempoRestante: DURACION_PARTIDO,
     terminado: false,
-    ultimoGol: null
+    ultimoGol: null,
+    ultimoTiro: null,
+    jugada: null,
+    posesion: grupo[Math.floor(Math.random() * grupo.length)].nombre
   };
   estado.entrenamiento = null;
   const etiqueta = modo === 1 ? '1 vs 1' : (modo === 2 ? '2 vs 2' : '3 vs 3');
@@ -313,17 +319,76 @@ function iniciarPartido(modo) {
     if (!p.activo) { clearInterval(partidoInterval); return; }
 
     [...p.equipoA.jugadores, ...p.equipoB.jugadores].forEach(j => {
-      j.x = Math.min(92, Math.max(8, j.x + (Math.random() * 20 - 10)));
-      j.y = Math.min(92, Math.max(8, j.y + (Math.random() * 20 - 10)));
+      if (j.arquero) {
+        // el arquero se queda pegado a su arco, solo se mueve un poco arriba/abajo
+        j.y = Math.min(66, Math.max(34, j.y + (Math.random() * 12 - 6)));
+        return;
+      }
     });
 
-    if (Math.random() < 0.10) {
-      const equipoQueMete = Math.random() < 0.5 ? 'equipoA' : 'equipoB';
-      const eq = p[equipoQueMete];
-      const autor = eq.jugadores[Math.floor(Math.random() * eq.jugadores.length)];
-      eq.goles++;
-      p.ultimoGol = { equipo: equipoQueMete, autor: autor.nombre, t: Date.now() };
-      agregarLog(`⚽ GOOOL de ${autor.nombre} para ${eq.nombre}! (${p.equipoA.goles}-${p.equipoB.goles})`, 'gol');
+    if (!p.jugada) {
+      // arranca una jugada nueva: se elige quién ataca
+      const equipoAtacanteId = Math.random() < 0.5 ? 'equipoA' : 'equipoB';
+      const equipoAtac = p[equipoAtacanteId];
+      const campo = equipoAtac.jugadores.filter(j => !j.arquero);
+      const atacante = campo.length > 0
+        ? campo[Math.floor(Math.random() * campo.length)]
+        : equipoAtac.jugadores[0]; // 1vs1: no hay arquero, juega el único jugador
+      p.jugada = { atacanteNombre: atacante.nombre, equipoAtacanteId, ticks: 0 };
+      p.posesion = atacante.nombre;
+      p.ultimoTiro = null;
+    }
+
+    const j = p.jugada;
+    const equipoAtac = p[j.equipoAtacanteId];
+    const equipoDefId = j.equipoAtacanteId === 'equipoA' ? 'equipoB' : 'equipoA';
+    const equipoDef = p[equipoDefId];
+    const atacante = equipoAtac.jugadores.find(x => x.nombre === j.atacanteNombre);
+    const metaX = equipoAtac.ladoGol === 'izq' ? 86 : 14; // avanza hacia el arco rival
+
+    // jugadores de campo que no están llevando la pelota, se mueven libres
+    [...p.equipoA.jugadores, ...p.equipoB.jugadores].forEach(x => {
+      if (x.arquero || x.nombre === j.atacanteNombre) return;
+      x.x = Math.min(90, Math.max(10, x.x + (Math.random() * 16 - 8)));
+      x.y = Math.min(90, Math.max(10, x.y + (Math.random() * 16 - 8)));
+    });
+
+    j.ticks++;
+    if (j.ticks < 3) {
+      // el atacante se acerca de a poco al arco rival, llevando la pelota
+      atacante.x += (metaX - atacante.x) * 0.45;
+      atacante.y += (50 - atacante.y) * 0.25 + (Math.random() * 14 - 7);
+      atacante.y = Math.min(88, Math.max(12, atacante.y));
+      p.posesion = atacante.nombre;
+    } else {
+      // definición: remata al arco
+      const arqueroRival = equipoDef.jugadores.find(x => x.arquero);
+      const golProbabilidad = arqueroRival ? 0.32 : 0.55; // sin arquero (1v1) cuesta menos
+      const gol = Math.random() < golProbabilidad;
+
+      atacante.x = metaX;
+      p.posesion = atacante.nombre;
+
+      if (arqueroRival) {
+        arqueroRival.y = gol
+          ? (arqueroRival.y > 50 ? 32 : 68) // se tira para el otro lado, no llega
+          : atacante.y; // se para justo en la línea del remate
+      }
+
+      p.ultimoTiro = {
+        gol, autor: atacante.nombre, equipo: j.equipoAtacanteId,
+        x: metaX, y: atacante.y, t: Date.now()
+      };
+
+      if (gol) {
+        equipoAtac.goles++;
+        p.ultimoGol = { equipo: j.equipoAtacanteId, autor: atacante.nombre, t: Date.now() };
+        agregarLog(`⚽ GOOOL de ${atacante.nombre} para ${equipoAtac.nombre}! (${p.equipoA.goles}-${p.equipoB.goles})`, 'gol');
+      } else {
+        const nombreArquero = arqueroRival ? arqueroRival.nombre : 'el rival';
+        agregarLog(`🧤 ${nombreArquero} atajó el remate de ${atacante.nombre}`, 'gol');
+      }
+      p.jugada = null; // la próxima jugada arranca sola en el siguiente segundo
     }
 
     p.tiempoRestante--;
